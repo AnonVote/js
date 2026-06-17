@@ -1,9 +1,11 @@
 /**
  * @anonvote/crypto
  *
- * Public API for the AnonVote cryptographic primitives and shared types.
+ * Public API for the AnonVote cryptographic primitives, shared types,
+ * and the AnonVoteClient SDK.
  */
 
+// Crypto primitives
 export {
   hashIdentifier,
   generateToken,
@@ -12,6 +14,10 @@ export {
   decryptVote,
 } from "./crypto";
 
+// Client SDK
+export { AnonVoteClient } from "./client";
+
+// Core types
 export type {
   BallotStatus,
   Option,
@@ -28,4 +34,11 @@ export type {
   ApiResponse,
   TokenResponse,
   LoginResponse,
+  // Client SDK types
+  ClientConfig,
+  CreateElectionParams,
+  CastVoteParams,
+  Election,
+  ElectionOption,
+  VoteReceipt,
 } from "./types";
