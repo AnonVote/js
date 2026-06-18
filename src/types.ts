@@ -215,8 +215,8 @@ export interface CastVoteParams {
   ballotId: string;
   /** The selected vote option (must match one of the election's options). */
   voteOption: string;
-  /** The encryption key (64-char hex string) for encrypting the vote. */
-  encryptionKey: string;
+  /** The encryption key (64-char hex string) for encrypting the vote. Falls back to client config. */
+  encryptionKey?: string;
 }
 
 /**
