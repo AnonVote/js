@@ -150,3 +150,90 @@ export interface LoginResponse {
   organizationId: string;
   name: string;
 }
+
+// ── Client SDK Types ──────────────────────────────────────────────────────────
+
+/**
+ * Configuration options for the AnonVoteClient.
+ */
+export interface ClientConfig {
+  /** The encryption key used for vote encryption (64-char hex string). */
+  encryptionKey?: string;
+}
+
+/**
+ * An option within an election.
+ */
+export interface ElectionOption {
+  /** Unique identifier for this option. */
+  id: string;
+  /** The text displayed to voters for this option. */
+  text: string;
+}
+
+/**
+ * Input parameters for creating a new election.
+ */
+export interface CreateElectionParams {
+  /** The title of the election. */
+  title: string;
+  /** A description of the election. */
+  description: string;
+  /** The available voting options (e.g. ["Yes", "No", "Abstain"]). */
+  options: string[];
+  /** The election start time (ISO 8601 string or Unix timestamp). */
+  startTime: string | number;
+  /** The election end time (ISO 8601 string or Unix timestamp). */
+  endTime: string | number;
+}
+
+/**
+ * Represents an election created by the AnonVoteClient.
+ */
+export interface Election {
+  /** Unique identifier for the election. */
+  id: string;
+  /** The title of the election. */
+  title: string;
+  /** A description of what the election is about. */
+  description: string;
+  /** The available voting options. */
+  options: ElectionOption[];
+  /** When the election starts (ISO 8601). */
+  startTime: string;
+  /** When the election ends (ISO 8601). */
+  endTime: string;
+  /** When the election was created (ISO 8601). */
+  createdAt: string;
+}
+
+/**
+ * Input parameters for casting a vote.
+ */
+export interface CastVoteParams {
+  /** The ballot/election ID to vote in. */
+  ballotId: string;
+  /** The selected vote option (must match one of the election's options). */
+  voteOption: string;
+  /** The encryption key (64-char hex string) for encrypting the vote. Falls back to client config. */
+  encryptionKey?: string;
+}
+
+/**
+ * A receipt confirming a vote was successfully cast.
+ */
+export interface VoteReceipt {
+  /** Unique identifier for this receipt. */
+  id: string;
+  /** The election ID this vote belongs to. */
+  electionId: string;
+  /** The ballot ID associated with this vote. */
+  ballotId: string;
+  /** The encrypted vote payload. */
+  encryptedPayload: string;
+  /** When the vote was cast (ISO 8601). */
+  castAt: string;
+  /** Whether the vote has been verified. */
+  verified: boolean;
+}
+
