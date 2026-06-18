@@ -26,6 +26,35 @@ describe("hashIdentifier", () => {
     );
   });
 
+  it("normalizes case: alice@example.com === Alice@example.com", () => {
+    expect(hashIdentifier("alice@example.com")).toBe(
+      hashIdentifier("Alice@example.com"),
+    );
+  });
+
+  it("normalizes whitespace: alice@example.com === ' alice@example.com '", () => {
+    expect(hashIdentifier("alice@example.com")).toBe(
+      hashIdentifier(" alice@example.com "),
+    );
+  });
+
+  it("normalizes uppercase: ALICE@EXAMPLE.COM === alice@example.com", () => {
+    expect(hashIdentifier("ALICE@EXAMPLE.COM")).toBe(
+      hashIdentifier("alice@example.com"),
+    );
+  });
+
+  it("returns consistent hash for empty string", () => {
+    const emptyHash = hashIdentifier("");
+    expect(emptyHash).toHaveLength(64);
+    expect(emptyHash).toMatch(/^[0-9a-f]+$/);
+    expect(hashIdentifier("")).toBe(emptyHash);
+  });
+
+  it("whitespace-only string hashes same as empty string", () => {
+    expect(hashIdentifier(" ")).toBe(hashIdentifier(""));
+  });
+
   it("produces different hashes for different inputs", () => {
     expect(hashIdentifier("alice@example.com")).not.toBe(
       hashIdentifier("bob@example.com"),

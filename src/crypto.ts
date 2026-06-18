@@ -11,6 +11,10 @@ import {
  * Used to store eligibility entries without retaining the original identifier.
  * Input is trimmed and lowercased before hashing for consistency.
  *
+ * @warning This is a breaking change for any existing hashed data. Any eligibility
+ * data hashed with the unnormalized version will no longer match after this fix.
+ * Test fixtures and seeded eligibility data must be regenerated.
+ *
  * @example
  * const hash = hashIdentifier("alice@example.com");
  */
