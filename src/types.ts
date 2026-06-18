@@ -56,6 +56,16 @@ export interface EligibilityEntry {
 // ── Token ─────────────────────────────────────────────────────────────────────
 
 /**
+ * A raw token paired with its hash.
+ * `value` is the raw token from {@link generateToken} — never persisted.
+ * `hash` is the result of {@link hashToken} — safe to store.
+ */
+export interface Token {
+  value: string;
+  hash: string;
+}
+
+/**
  * A one-time voter token record.
  * `tokenHash` is the SHA-256 hash of the raw token — the raw value is never
  * stored. See {@link generateToken} and {@link hashToken}.
@@ -76,19 +86,22 @@ export interface VoterToken {
 // ── Vote ──────────────────────────────────────────────────────────────────────
 
 /**
- * A submitted vote.
- * `encryptedPayload` is the AES-256-GCM encrypted option ID.
- * See {@link encryptVote} and {@link decryptVote}.
+ * A raw vote, prior to encryption.
  */
 export interface Vote {
-  id: string;
   ballotId: string;
-  optionId: string;
-  encryptedPayload: string;
-  weight: number;
-  rank?: number;
-  stellarTxId?: string;
-  submittedAt: string;
+  option: string;
+  timestamp: number;
+}
+
+/**
+ * An AES-256-GCM encrypted payload, produced by {@link encryptVote} and
+ * consumed by {@link decryptVote}. All fields are hex-encoded strings.
+ */
+export interface EncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  authTag: string;
 }
 
 // ── Organization ──────────────────────────────────────────────────────────────
@@ -230,7 +243,7 @@ export interface VoteReceipt {
   /** The ballot ID associated with this vote. */
   ballotId: string;
   /** The encrypted vote payload. */
-  encryptedPayload: string;
+  encryptedPayload: EncryptedPayload;
   /** When the vote was cast (ISO 8601). */
   castAt: string;
   /** Whether the vote has been verified. */

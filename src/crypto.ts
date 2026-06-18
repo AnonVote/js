@@ -4,6 +4,7 @@ import {
   createCipheriv,
   createDecipheriv,
 } from "crypto";
+import type { EncryptedPayload } from "./types";
 
 /**
  * SHA-256 hash of a voter identifier.
@@ -47,40 +48,40 @@ export function hashToken(token: string): string {
 }
 
 /**
- * Encrypt a vote option ID using AES-256-GCM.
+ * Encrypt a vote option using AES-256-GCM.
  *
  * The encrypted payload stores only the selected option — no voter identity,
  * no token value. Authenticated encryption ensures tampering is detectable.
  *
- * @param optionId   - The ballot option UUID to encrypt
- * @param ballotKey  - 64-char hex string (32 bytes), from BALLOT_ENCRYPTION_KEY env var
- * @returns base64 string in format: `iv:authTag:ciphertext`
+ * @param option - The raw vote option string to encrypt
+ * @param key    - 64-char hex string (32 bytes), from BALLOT_ENCRYPTION_KEY env var
+ * @returns an {@link EncryptedPayload} with ciphertext, iv, and authTag as hex strings
  *
  * @example
- * const encrypted = encryptVote("option-uuid", process.env.BALLOT_ENCRYPTION_KEY!);
+ * const encrypted = encryptVote("Yes", process.env.BALLOT_ENCRYPTION_KEY!);
  */
-export function encryptVote(optionId: string, ballotKey: string): string {
-  if (ballotKey.length !== 64) {
+export function encryptVote(option: string, key: string): EncryptedPayload {
+  if (key.length !== 64) {
     throw new Error(
-      "BALLOT_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)",
+      "encryption key must be a 64-character hex string (32 bytes)",
     );
   }
 
-  const key = Buffer.from(ballotKey, "hex");
+  const keyBuffer = Buffer.from(key, "hex");
   const iv = randomBytes(12); // 96-bit IV for GCM
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const cipher = createCipheriv("aes-256-gcm", keyBuffer, iv);
 
   const encrypted = Buffer.concat([
-    cipher.update(optionId, "utf8"),
+    cipher.update(option, "utf8"),
     cipher.final(),
   ]);
   const authTag = cipher.getAuthTag();
 
-  return [
-    iv.toString("base64"),
-    authTag.toString("base64"),
-    encrypted.toString("base64"),
-  ].join(":");
+  return {
+    ciphertext: encrypted.toString("hex"),
+    iv: iv.toString("hex"),
+    authTag: authTag.toString("hex"),
+  };
 }
 
 /**
@@ -89,29 +90,30 @@ export function encryptVote(optionId: string, ballotKey: string): string {
  * Should only be called by the result tally engine. Any payload tampering
  * is detected and rejected by GCM authentication tag verification.
  *
- * @param payload    - base64 string in format: `iv:authTag:ciphertext`
- * @param ballotKey  - 64-char hex string (32 bytes)
- * @returns the original optionId
+ * @param payload - the {@link EncryptedPayload} to decrypt
+ * @param key     - 64-char hex string (32 bytes)
+ * @returns the original option string
  *
  * @example
- * const optionId = decryptVote(encryptedPayload, process.env.BALLOT_ENCRYPTION_KEY!);
+ * const option = decryptVote(encryptedPayload, process.env.BALLOT_ENCRYPTION_KEY!);
  */
-export function decryptVote(payload: string, ballotKey: string): string {
-  const parts = payload.split(":");
-  if (parts.length !== 3) {
-    throw new Error(
-      "Invalid encrypted payload format. Expected iv:authTag:ciphertext",
-    );
-  }
+export function decryptVote(payload: EncryptedPayload, key: string): string {
+  const keyBuffer = Buffer.from(key, "hex");
+  const iv = Buffer.from(payload.iv, "hex");
+  const authTag = Buffer.from(payload.authTag, "hex");
+  const ciphertext = Buffer.from(payload.ciphertext, "hex");
 
-  const [ivB64, authTagB64, ciphertextB64] = parts;
-  const key = Buffer.from(ballotKey, "hex");
-  const iv = Buffer.from(ivB64, "base64");
-  const authTag = Buffer.from(authTagB64, "base64");
-  const ciphertext = Buffer.from(ciphertextB64, "base64");
-
-  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  const decipher = createDecipheriv("aes-256-gcm", keyBuffer, iv);
   decipher.setAuthTag(authTag);
 
-  return decipher.update(ciphertext).toString("utf8") + decipher.final("utf8");
+  try {
+    return (
+      decipher.update(ciphertext).toString("utf8") +
+      decipher.final("utf8")
+    );
+  } catch {
+    throw new Error(
+      "Failed to decrypt vote: payload has been tampered with or the key is incorrect",
+    );
+  }
 }
