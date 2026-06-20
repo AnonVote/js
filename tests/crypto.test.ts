@@ -72,15 +72,28 @@ describe("generateToken", () => {
   it("returns a different token each call", () => {
     expect(generateToken()).not.toBe(generateToken());
   });
+
+  it("produces 1000 unique values across consecutive calls", () => {
+    const tokens = new Set<string>();
+    for (let i = 0; i < 1000; i++) {
+      tokens.add(generateToken());
+    }
+    expect(tokens.size).toBe(1000);
+  });
 });
 
 describe("hashToken", () => {
   it("returns a 64-char hex string", () => {
     expect(hashToken("mytoken")).toHaveLength(64);
+    expect(hashToken("mytoken")).toMatch(/^[0-9a-f]+$/);
   });
 
   it("is deterministic", () => {
     expect(hashToken("mytoken")).toBe(hashToken("mytoken"));
+  });
+
+  it("produces different hashes for different tokens", () => {
+    expect(hashToken("token-a")).not.toBe(hashToken("token-b"));
   });
 
   it("differs from hashIdentifier for the same input", () => {
@@ -91,36 +104,39 @@ describe("hashToken", () => {
 
 describe("encryptVote / decryptVote", () => {
   it("round-trips correctly", () => {
-    const optionId = "option-uuid-1234";
-    const encrypted = encryptVote(optionId, TEST_KEY);
-    expect(decryptVote(encrypted, TEST_KEY)).toBe(optionId);
+    const option = "Yes";
+    const encrypted = encryptVote(option, TEST_KEY);
+    expect(decryptVote(encrypted, TEST_KEY)).toBe(option);
   });
 
   it("produces different ciphertexts for the same input (random IV)", () => {
-    const optionId = "option-uuid-1234";
-    expect(encryptVote(optionId, TEST_KEY)).not.toBe(
-      encryptVote(optionId, TEST_KEY),
-    );
+    const option = "Yes";
+    const first = encryptVote(option, TEST_KEY);
+    const second = encryptVote(option, TEST_KEY);
+    expect(first.ciphertext).not.toBe(second.ciphertext);
+    expect(first.iv).not.toBe(second.iv);
   });
 
-  it("encrypted payload has three base64 segments (iv:authTag:ciphertext)", () => {
-    const parts = encryptVote("opt-1", TEST_KEY).split(":");
-    expect(parts).toHaveLength(3);
-    parts.forEach((p) => expect(p.length).toBeGreaterThan(0));
+  it("returns an EncryptedPayload with hex-encoded ciphertext, iv, and authTag", () => {
+    const encrypted = encryptVote("Yes", TEST_KEY);
+    expect(encrypted.ciphertext).toMatch(/^[0-9a-f]+$/);
+    expect(encrypted.iv).toMatch(/^[0-9a-f]+$/);
+    expect(encrypted.authTag).toMatch(/^[0-9a-f]+$/);
   });
 
   it("throws on invalid key length", () => {
-    expect(() => encryptVote("opt", "tooshort")).toThrow();
+    expect(() => encryptVote("Yes", "tooshort")).toThrow();
   });
 
   it("throws on tampered ciphertext", () => {
-    const encrypted = encryptVote("option-uuid-1234", TEST_KEY);
-    const parts = encrypted.split(":");
-    parts[2] = Buffer.from("tampered").toString("base64");
-    expect(() => decryptVote(parts.join(":"), TEST_KEY)).toThrow();
+    const encrypted = encryptVote("Yes", TEST_KEY);
+    const tampered = { ...encrypted, ciphertext: "00".repeat(8) };
+    expect(() => decryptVote(tampered, TEST_KEY)).toThrow();
   });
 
-  it("throws on malformed payload", () => {
-    expect(() => decryptVote("notvalid", TEST_KEY)).toThrow();
+  it("throws on tampered auth tag", () => {
+    const encrypted = encryptVote("Yes", TEST_KEY);
+    const tampered = { ...encrypted, authTag: "00".repeat(16) };
+    expect(() => decryptVote(tampered, TEST_KEY)).toThrow();
   });
 });

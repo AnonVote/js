@@ -5,6 +5,12 @@ import {
   type ClientConfig,
 } from "../src/types";
 
+const ENCRYPTED_PAYLOAD_SHAPE = {
+  ciphertext: expect.stringMatching(/^[0-9a-f]+$/),
+  iv: expect.stringMatching(/^[0-9a-f]+$/),
+  authTag: expect.stringMatching(/^[0-9a-f]+$/),
+};
+
 const TEST_KEY = "a".repeat(64); // 32 bytes hex for tests
 
 describe("AnonVoteClient", () => {
@@ -234,7 +240,7 @@ describe("AnonVoteClient", () => {
       expect(receipt.id.startsWith("receipt-")).toBe(true);
       expect(receipt.ballotId).toBe("elec-123");
       expect(receipt.electionId).toBe("elec-123");
-      expect(receipt.encryptedPayload).toMatch(/^[A-Za-z0-9+/=]+:/);
+      expect(receipt.encryptedPayload).toEqual(ENCRYPTED_PAYLOAD_SHAPE);
       expect(receipt.castAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(receipt.verified).toBe(false);
     });
@@ -246,9 +252,8 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
-      // The payload should have three parts: iv:authTag:ciphertext
-      const parts = receipt.encryptedPayload.split(":");
-      expect(parts).toHaveLength(3);
+      // The payload should have ciphertext, iv, and authTag as hex strings
+      expect(receipt.encryptedPayload).toEqual(ENCRYPTED_PAYLOAD_SHAPE);
     });
 
     it("produces different encrypted payloads for the same vote (random IV)", () => {
@@ -263,7 +268,8 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
-      expect(r1.encryptedPayload).not.toBe(r2.encryptedPayload);
+      expect(r1.encryptedPayload.ciphertext).not.toBe(r2.encryptedPayload.ciphertext);
+      expect(r1.encryptedPayload.iv).not.toBe(r2.encryptedPayload.iv);
     });
   });
 
@@ -474,9 +480,10 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
-      const parts = receipt.encryptedPayload.split(":");
-      parts[2] = Buffer.from("tampered").toString("base64");
-      const tampered = parts.join(":");
+      const tampered = {
+        ...receipt.encryptedPayload,
+        ciphertext: "00".repeat(8),
+      };
 
       const isValid = client.verifyVote(tampered, TEST_KEY);
       expect(isValid).toBe(false);
@@ -495,12 +502,18 @@ describe("AnonVoteClient", () => {
     });
 
     it("returns false for malformed payload", () => {
-      const isValid = client.verifyVote("not-a-valid-payload", TEST_KEY);
+      const isValid = client.verifyVote(
+        { ciphertext: "", iv: "", authTag: "" },
+        TEST_KEY,
+      );
       expect(isValid).toBe(false);
     });
 
-    it("returns false for payload with wrong number of parts", () => {
-      const isValid = client.verifyVote("part1:part2", TEST_KEY);
+    it("returns false for an incomplete payload", () => {
+      const isValid = client.verifyVote(
+        { ciphertext: "abcd", iv: "", authTag: "" } as any,
+        TEST_KEY,
+      );
       expect(isValid).toBe(false);
     });
   });
@@ -547,13 +560,17 @@ describe("AnonVoteClient", () => {
         id: "receipt-1",
         electionId: "elec-1",
         ballotId: "elec-1",
-        encryptedPayload: "iv:tag:cipher",
+        encryptedPayload: { ciphertext: "ab", iv: "cd", authTag: "ef" },
         castAt: "2024-01-01T00:00:00.000Z",
         verified: true,
       };
 
       expect(receipt.verified).toBe(true);
-      expect(receipt.encryptedPayload).toBe("iv:tag:cipher");
+      expect(receipt.encryptedPayload).toEqual({
+        ciphertext: "ab",
+        iv: "cd",
+        authTag: "ef",
+      });
     });
 
     it("ClientConfig type is properly structured", () => {

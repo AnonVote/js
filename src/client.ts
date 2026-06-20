@@ -7,6 +7,7 @@ import type {
   ClientConfig,
   CreateElectionParams,
   CastVoteParams,
+  EncryptedPayload,
 } from "./types";
 
 /**
@@ -190,8 +191,13 @@ export class AnonVoteClient {
    *                        If not provided, uses the client config key.
    * @returns true if the payload can be successfully decrypted and validated.
    */
-  verifyVote(encryptedPayload: string, encryptionKey?: string): boolean {
-    if (!encryptedPayload || encryptedPayload.trim().length === 0) {
+  verifyVote(encryptedPayload: EncryptedPayload, encryptionKey?: string): boolean {
+    if (
+      !encryptedPayload ||
+      !encryptedPayload.ciphertext ||
+      !encryptedPayload.iv ||
+      !encryptedPayload.authTag
+    ) {
       return false;
     }
 
@@ -201,7 +207,7 @@ export class AnonVoteClient {
     }
 
     try {
-      const decrypted = decryptVote(encryptedPayload.trim(), key);
+      const decrypted = decryptVote(encryptedPayload, key);
       // If decryption succeeded, the payload is valid
       return typeof decrypted === "string" && decrypted.length > 0;
     } catch {
