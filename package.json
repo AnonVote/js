@@ -38,6 +38,9 @@
     "type": "git",
     "url": "https://github.com/AnonVote/js.git"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {},
   "devDependencies": {
     "@types/jest": "29.5.12",
