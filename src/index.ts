@@ -17,6 +17,9 @@ export {
 // Client SDK
 export { AnonVoteClient } from "./client";
 
+// Errors
+export { AnonVoteError, ValidationError, CryptoError } from "./errors";
+
 // Core types
 export type {
   BallotStatus,
