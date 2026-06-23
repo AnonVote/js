@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { encryptVote, decryptVote } from "./crypto";
+import { ValidationError } from "./errors";
 import type {
   Election,
   ElectionOption,
@@ -81,40 +82,40 @@ export class AnonVoteClient {
   createElection(params: CreateElectionParams): Election {
     // Validate title
     if (!params.title || (typeof params.title === "string" && params.title.trim().length === 0)) {
-      throw new Error("Election title is required");
+      throw new ValidationError("Election title is required");
     }
 
     // Validate description
     if (!params.description || (typeof params.description === "string" && params.description.trim().length === 0)) {
-      throw new Error("Election description is required");
+      throw new ValidationError("Election description is required");
     }
 
     // Validate options
     if (!params.options || !Array.isArray(params.options) || params.options.length === 0) {
-      throw new Error("At least one voting option is required");
+      throw new ValidationError("At least one voting option is required");
     }
 
     // Validate each option is non-empty
     for (const opt of params.options) {
       if (!opt || (typeof opt === "string" && opt.trim().length === 0)) {
-        throw new Error("Voting options cannot be empty strings");
+        throw new ValidationError("Voting options cannot be empty strings");
       }
     }
 
     // Validate startTime
     const startTimeMs = this.parseTimestamp(params.startTime);
     if (isNaN(startTimeMs)) {
-      throw new Error("Invalid startTime: must be a valid date or timestamp");
+      throw new ValidationError("Invalid startTime: must be a valid date or timestamp");
     }
 
     // Validate endTime
     const endTimeMs = this.parseTimestamp(params.endTime);
     if (isNaN(endTimeMs)) {
-      throw new Error("Invalid endTime: must be a valid date or timestamp");
+      throw new ValidationError("Invalid endTime: must be a valid date or timestamp");
     }
 
     if (endTimeMs <= startTimeMs) {
-      throw new Error("endTime must be after startTime");
+      throw new ValidationError("endTime must be after startTime");
     }
 
     const now = new Date();
@@ -152,16 +153,16 @@ export class AnonVoteClient {
    */
   castVote(params: CastVoteParams): VoteReceipt {
     if (!params.ballotId || (typeof params.ballotId === "string" && params.ballotId.trim().length === 0)) {
-      throw new Error("ballotId is required");
+      throw new ValidationError("ballotId is required");
     }
 
     if (!params.voteOption || (typeof params.voteOption === "string" && params.voteOption.trim().length === 0)) {
-      throw new Error("voteOption is required");
+      throw new ValidationError("voteOption is required");
     }
 
     const encryptionKey = params.encryptionKey || this.config.encryptionKey;
     if (!encryptionKey) {
-      throw new Error("encryptionKey is required either in params or client config");
+      throw new ValidationError("encryptionKey is required either in params or client config");
     }
 
     // Encrypt the vote
@@ -225,7 +226,7 @@ export class AnonVoteClient {
    */
   serialize(election: Election): SerializedElection {
     if (!election || typeof election !== "object") {
-      throw new Error("Invalid election object");
+      throw new ValidationError("Invalid election object");
     }
 
     return {
@@ -248,46 +249,46 @@ export class AnonVoteClient {
    */
   deserialize(payload: SerializedElection): Election {
     if (!payload || typeof payload !== "object") {
-      throw new Error("Invalid election object");
+      throw new ValidationError("Invalid election object");
     }
 
     // Validate required fields
     if (!payload.id || typeof payload.id !== "string") {
-      throw new Error("Invalid payload: missing or invalid id");
+      throw new ValidationError("Invalid payload: missing or invalid id");
     }
 
     if (!payload.title || typeof payload.title !== "string") {
-      throw new Error("Invalid payload: missing or invalid title");
+      throw new ValidationError("Invalid payload: missing or invalid title");
     }
 
     if (!payload.description || typeof payload.description !== "string") {
-      throw new Error("Invalid payload: missing or invalid description");
+      throw new ValidationError("Invalid payload: missing or invalid description");
     }
 
     if (!Array.isArray(payload.options)) {
-      throw new Error("Invalid payload: missing or invalid options");
+      throw new ValidationError("Invalid payload: missing or invalid options");
     }
 
     // Validate each option has id and text
     for (const opt of payload.options) {
       if (!opt.id || typeof opt.id !== "string") {
-        throw new Error("Invalid payload: option missing id");
+        throw new ValidationError("Invalid payload: option missing id");
       }
       if (!opt.text || typeof opt.text !== "string") {
-        throw new Error("Invalid payload: option missing text");
+        throw new ValidationError("Invalid payload: option missing text");
       }
     }
 
     if (!payload.startTime || typeof payload.startTime !== "string") {
-      throw new Error("Invalid payload: missing or invalid startTime");
+      throw new ValidationError("Invalid payload: missing or invalid startTime");
     }
 
     if (!payload.endTime || typeof payload.endTime !== "string") {
-      throw new Error("Invalid payload: missing or invalid endTime");
+      throw new ValidationError("Invalid payload: missing or invalid endTime");
     }
 
     if (!payload.createdAt || typeof payload.createdAt !== "string") {
-      throw new Error("Invalid payload: missing or invalid createdAt");
+      throw new ValidationError("Invalid payload: missing or invalid createdAt");
     }
 
     return {

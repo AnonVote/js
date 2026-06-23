@@ -5,6 +5,7 @@ import {
   createDecipheriv,
 } from "crypto";
 import type { EncryptedPayload } from "./types";
+import { CryptoError, ValidationError } from "./errors";
 
 /**
  * SHA-256 hash of a voter identifier.
@@ -66,7 +67,7 @@ export function hashToken(token: string): string {
  */
 export function encryptVote(option: string, key: string): EncryptedPayload {
   if (key.length !== 64) {
-    throw new Error(
+    throw new ValidationError(
       "encryption key must be a 64-character hex string (32 bytes)",
     );
   }
@@ -116,7 +117,7 @@ export function decryptVote(payload: EncryptedPayload, key: string): string {
       decipher.final("utf8")
     );
   } catch {
-    throw new Error(
+    throw new CryptoError(
       "Failed to decrypt vote: payload has been tampered with or the key is incorrect",
     );
   }
