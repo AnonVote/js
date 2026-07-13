@@ -16,7 +16,7 @@ This package is the canonical source of all crypto and token logic used across t
 | ----------------------------------------------------------- | ---------------------------------------- |
 | [AnonVote/core](https://github.com/AnonVote/core)           | Yes — backend imports `@anonvote/crypto` |
 | [AnonVote/contracts](https://github.com/AnonVote/contracts) | No — Soroban contracts use native Rust   |
-| [AnonVote/protocol](https://github.com/AnonVote/protocol)   | References this package in spec docs     |
+| [AnonVote/docs](https://github.com/AnonVote/docs)           | References this package in spec docs     |
 
 ---
 
