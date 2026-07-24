@@ -11,14 +11,16 @@ import { CryptoError, ValidationError } from "./errors";
  * SHA-256 hash of a voter identifier.
  *
  * Used to store eligibility entries without retaining the original identifier.
- * Input is trimmed and lowercased before hashing for consistency.
+ * Input is trimmed and lowercased before hashing for consistency — always
+ * normalize before hashing to avoid duplicate entries for the same voter.
  *
- * @warning This is a breaking change for any existing hashed data. Any eligibility
- * data hashed with the unnormalized version will no longer match after this fix.
- * Test fixtures and seeded eligibility data must be regenerated.
+ * @param id - The voter identifier to hash (e.g. an email address). Trimmed
+ *             and lowercased before hashing.
+ * @returns A 64-character lowercase hex string (SHA-256 digest).
  *
  * @example
  * const hash = hashIdentifier("alice@example.com");
+ * // hash === "3d0a9f2e..." (deterministic for the same input)
  */
 export function hashIdentifier(id: string): string {
   return createHash("sha256").update(id.trim().toLowerCase()).digest("hex");
@@ -27,13 +29,16 @@ export function hashIdentifier(id: string): string {
 /**
  * Generate a cryptographically secure random voter token.
  *
- * 32 bytes = 256 bits of entropy, hex encoded.
- * The raw value is given to the voter — never persisted server-side.
- * Use {@link hashToken} to store the server-side reference.
+ * Produces 32 bytes (256 bits) of entropy via Node.js `crypto.randomBytes`,
+ * encoded as a 64-character hex string. The raw value is given to the voter —
+ * never persisted server-side. Use {@link hashToken} to store the server-side
+ * reference.
+ *
+ * @returns A 64-character hex string representing a 256-bit random token.
  *
  * @example
- * const rawToken = generateToken(); // give to voter
- * const storedHash = hashToken(rawToken); // store this
+ * const rawToken = generateToken(); // give this to the voter
+ * const storedHash = hashToken(rawToken); // store only this
  */
 export function generateToken(): string {
   return randomBytes(32).toString("hex");
@@ -43,10 +48,16 @@ export function generateToken(): string {
  * SHA-256 hash of a raw voter token.
  *
  * Only the hash is stored in the database — the raw token is never persisted.
- * This enforces structural unlinkability between token issuance and vote submission.
+ * This enforces structural unlinkability between token issuance and vote
+ * submission. The raw token should be discarded after hashing.
+ *
+ * @param token - The raw hex token string produced by {@link generateToken}.
+ * @returns A 64-character lowercase hex string (SHA-256 digest of the token).
  *
  * @example
- * const hash = hashToken(rawToken);
+ * const rawToken = generateToken();
+ * const storedHash = hashToken(rawToken);
+ * // Store storedHash in the database; discard rawToken after giving it to the voter.
  */
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -56,14 +67,21 @@ export function hashToken(token: string): string {
  * Encrypt a vote option using AES-256-GCM.
  *
  * The encrypted payload stores only the selected option — no voter identity,
- * no token value. Authenticated encryption ensures tampering is detectable.
+ * no token value. Authenticated encryption (GCM mode) ensures any tampering
+ * is detectable at decryption time.
  *
- * @param option - The raw vote option string to encrypt
- * @param key    - 64-char hex string (32 bytes), from BALLOT_ENCRYPTION_KEY env var
- * @returns an {@link EncryptedPayload} with ciphertext, iv, and authTag as hex strings
+ * @param option - The raw vote option string to encrypt (e.g. `"Yes"` or an
+ *                 option UUID).
+ * @param key    - A 64-character hex string (32 bytes) used as the AES-256
+ *                 encryption key. Typically sourced from the
+ *                 `BALLOT_ENCRYPTION_KEY` environment variable.
+ * @returns An {@link EncryptedPayload} containing `ciphertext`, `iv`, and
+ *          `authTag` as hex strings.
+ * @throws {@link ValidationError} if `key` is not exactly 64 characters long.
  *
  * @example
  * const encrypted = encryptVote("Yes", process.env.BALLOT_ENCRYPTION_KEY!);
+ * // encrypted === { ciphertext: "...", iv: "...", authTag: "..." }
  */
 export function encryptVote(option: string, key: string): EncryptedPayload {
   if (key.length !== 64) {
@@ -92,15 +110,20 @@ export function encryptVote(option: string, key: string): EncryptedPayload {
 /**
  * Decrypt a vote payload encrypted with {@link encryptVote}.
  *
- * Should only be called by the result tally engine. Any payload tampering
- * is detected and rejected by GCM authentication tag verification.
+ * Should only be called by the result tally engine. GCM authentication tag
+ * verification detects and rejects any payload that has been tampered with.
  *
- * @param payload - the {@link EncryptedPayload} to decrypt
- * @param key     - 64-char hex string (32 bytes)
- * @returns the original option string
+ * @param payload - The {@link EncryptedPayload} to decrypt, as returned by
+ *                  {@link encryptVote}.
+ * @param key     - A 64-character hex string (32 bytes) — must be the same
+ *                  key that was used to encrypt the payload.
+ * @returns The original option string that was encrypted.
+ * @throws {@link CryptoError} if decryption fails because the payload has been
+ *         tampered with or the key does not match the one used for encryption.
  *
  * @example
  * const option = decryptVote(encryptedPayload, process.env.BALLOT_ENCRYPTION_KEY!);
+ * // option === "Yes"
  */
 export function decryptVote(payload: EncryptedPayload, key: string): string {
   const keyBuffer = Buffer.from(key, "hex");
