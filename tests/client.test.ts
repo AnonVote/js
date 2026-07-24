@@ -97,12 +97,12 @@ describe("AnonVoteClient", () => {
   describe("createElection - validation", () => {
     it("throws on missing title", () => {
       expect(() =>
-        (client as any).createElection({
+        (client as unknown as AnonVoteClient).createElection({
           description: "desc",
           options: ["A"],
           startTime: Date.now(),
           endTime: Date.now() + 1000,
-        }),
+        } as unknown as Parameters<AnonVoteClient["createElection"]>[0]),
       ).toThrow("Election title is required");
     });
 
@@ -120,12 +120,12 @@ describe("AnonVoteClient", () => {
 
     it("throws on missing description", () => {
       expect(() =>
-        (client as any).createElection({
+        client.createElection({
           title: "Title",
           options: ["A"],
           startTime: Date.now(),
           endTime: Date.now() + 1000,
-        }),
+        } as unknown as Parameters<AnonVoteClient["createElection"]>[0]),
       ).toThrow("Election description is required");
     });
 
@@ -143,12 +143,12 @@ describe("AnonVoteClient", () => {
 
     it("throws on missing options", () => {
       expect(() =>
-        (client as any).createElection({
+        client.createElection({
           title: "Title",
           description: "desc",
           startTime: Date.now(),
           endTime: Date.now() + 1000,
-        }),
+        } as unknown as Parameters<AnonVoteClient["createElection"]>[0]),
       ).toThrow("At least one voting option is required");
     });
 
@@ -309,19 +309,19 @@ describe("AnonVoteClient", () => {
 
       const payload = client.serialize(election);
       const json = JSON.stringify(payload);
-      const parsed = JSON.parse(json);
+      const parsed: unknown = JSON.parse(json);
 
       expect(parsed).toEqual(payload);
     });
 
     it("throws on null election", () => {
-      expect(() => client.serialize(null as any)).toThrow(
+      expect(() => client.serialize(null as unknown as Election)).toThrow(
         "Invalid election object",
       );
     });
 
     it("throws on undefined election", () => {
-      expect(() => client.serialize(undefined as any)).toThrow(
+      expect(() => client.serialize(undefined as unknown as Election)).toThrow(
         "Invalid election object",
       );
     });
@@ -364,33 +364,33 @@ describe("AnonVoteClient", () => {
 
       const payload = client.serialize(election);
       const json = JSON.stringify(payload);
-      const parsed = JSON.parse(json);
-      const restored = client.deserialize(parsed);
+      const parsed: unknown = JSON.parse(json);
+      const restored = client.deserialize(parsed as Parameters<AnonVoteClient["deserialize"]>[0]);
 
       expect(restored).toEqual(election);
     });
 
     it("throws on missing id", () => {
-      expect(() => client.deserialize({ title: "T" } as any)).toThrow(
+      expect(() => client.deserialize({ title: "T" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0])).toThrow(
         "Invalid payload: missing or invalid id",
       );
     });
 
     it("throws on missing title", () => {
       expect(() =>
-        client.deserialize({ id: "1" } as any),
+        client.deserialize({ id: "1" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid title");
     });
 
     it("throws on missing description", () => {
       expect(() =>
-        client.deserialize({ id: "1", title: "T" } as any),
+        client.deserialize({ id: "1", title: "T" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid description");
     });
 
     it("throws on missing options", () => {
       expect(() =>
-        client.deserialize({ id: "1", title: "T", description: "D" } as any),
+        client.deserialize({ id: "1", title: "T", description: "D" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid options");
     });
 
@@ -401,7 +401,7 @@ describe("AnonVoteClient", () => {
           title: "T",
           description: "D",
           options: [],
-        } as any),
+        } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid startTime");
     });
 
@@ -413,7 +413,7 @@ describe("AnonVoteClient", () => {
           description: "D",
           options: [],
           startTime: "2024-01-01T00:00:00.000Z",
-        } as any),
+        } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid endTime");
     });
 
@@ -426,7 +426,7 @@ describe("AnonVoteClient", () => {
           options: [],
           startTime: "2024-01-01T00:00:00.000Z",
           endTime: "2024-01-02T00:00:00.000Z",
-        } as any),
+        } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid createdAt");
     });
 
@@ -440,7 +440,7 @@ describe("AnonVoteClient", () => {
           startTime: "2024-01-01T00:00:00.000Z",
           endTime: "2024-01-02T00:00:00.000Z",
           createdAt: "2024-01-01T00:00:00.000Z",
-        } as any),
+        } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: option missing id");
     });
 
@@ -454,7 +454,7 @@ describe("AnonVoteClient", () => {
           startTime: "2024-01-01T00:00:00.000Z",
           endTime: "2024-01-02T00:00:00.000Z",
           createdAt: "2024-01-01T00:00:00.000Z",
-        } as any),
+        } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: option missing text");
     });
   });
@@ -511,7 +511,7 @@ describe("AnonVoteClient", () => {
 
     it("returns false for an incomplete payload", () => {
       const isValid = client.verifyVote(
-        { ciphertext: "abcd", iv: "", authTag: "" } as any,
+        { ciphertext: "abcd", iv: "", authTag: "" },
         TEST_KEY,
       );
       expect(isValid).toBe(false);

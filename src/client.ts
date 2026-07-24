@@ -334,7 +334,7 @@ export class AnonVoteClient {
    */
   private generateId(prefix: string): string {
     const bytes = randomBytes(16);
-    const hex = Array.from(bytes as unknown as number[])
+    const hex = Array.from(bytes)
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
