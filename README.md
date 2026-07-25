@@ -105,11 +105,23 @@ npm run build
 
 ### Scripts
 
-| Command         | Description                   |
-| --------------- | ----------------------------- |
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm test`      | Run unit tests with Jest      |
-| `npm run lint`  | ESLint check                  |
+| Command              | Description                          |
+| -------------------- | ------------------------------------ |
+| `npm run build`      | Compile TypeScript to `dist/`        |
+| `npm test`           | Run unit tests with Jest             |
+| `npm run lint`       | ESLint check on `src/` and `tests/`  |
+| `npm run lint:fix`   | Auto-fix fixable lint issues         |
+
+### Pre-commit checklist
+
+Before committing, run lint and tests manually:
+
+```bash
+npm run lint   # must exit 0 — no errors allowed
+npm test       # must pass
+```
+
+The `no-console` rule is enforced as an error. If lint flags a `console.*` in `src/`, remove it — do not add an eslint-disable comment.
 
 ---
 
