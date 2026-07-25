@@ -593,3 +593,312 @@ describe("AnonVoteClient", () => {
     });
   });
 });
+
+// ── Retry Logic ────────────────────────────────────────────────────────────────
+
+import {
+  withRetry,
+  resolveRetryConfig,
+  calculateDelay,
+  HttpError,
+  DEFAULT_RETRY_CONFIG,
+  sleep,
+} from "../src/retry";
+import type { RetryConfig } from "../src/types";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build a resolved RetryConfig with test-friendly defaults (no real delays). */
+function makeConfig(overrides: Partial<RetryConfig> = {}): RetryConfig {
+  return resolveRetryConfig({
+    maxRetries: 3,
+    initialDelayMs: 0, // eliminate real delays in unit tests
+    maxDelayMs: 0,
+    backoffMultiplier: 2,
+    ...overrides,
+  });
+}
+
+describe("withRetry", () => {
+  describe("success paths", () => {
+    it("returns the result immediately when the operation succeeds on the first try", async () => {
+      const operation = jest.fn().mockResolvedValue("ok");
+      const result = await withRetry(operation, makeConfig());
+      expect(result).toBe("ok");
+      expect(operation).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries after a transient failure and returns the result on a subsequent success", async () => {
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(new HttpError(503, "Service Unavailable"))
+        .mockResolvedValueOnce("ok");
+
+      const result = await withRetry(operation, makeConfig());
+      expect(result).toBe("ok");
+      expect(operation).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries multiple times and succeeds on the last allowed attempt", async () => {
+      // maxRetries = 3 means 4 total attempts (1 initial + 3 retries)
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(new HttpError(502, "Bad Gateway"))
+        .mockRejectedValueOnce(new HttpError(503, "Service Unavailable"))
+        .mockRejectedValueOnce(new HttpError(500, "Internal Server Error"))
+        .mockResolvedValueOnce("final");
+
+      const result = await withRetry(operation, makeConfig({ maxRetries: 3 }));
+      expect(result).toBe("final");
+      expect(operation).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  describe("failure paths", () => {
+    it("throws after exhausting all retries", async () => {
+      const err = new HttpError(503, "Service Unavailable");
+      const operation = jest.fn().mockRejectedValue(err);
+
+      await expect(withRetry(operation, makeConfig({ maxRetries: 3 }))).rejects.toThrow(err);
+      expect(operation).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+    });
+
+    it("does NOT retry on a permanent 400 error", async () => {
+      const err = new HttpError(400, "Bad Request");
+      const operation = jest.fn().mockRejectedValue(err);
+
+      await expect(withRetry(operation, makeConfig())).rejects.toThrow(err);
+      expect(operation).toHaveBeenCalledTimes(1); // no retries
+    });
+
+    it("does NOT retry on a 404 error", async () => {
+      const err = new HttpError(404, "Not Found");
+      const operation = jest.fn().mockRejectedValue(err);
+
+      await expect(withRetry(operation, makeConfig())).rejects.toThrow(err);
+      expect(operation).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT retry on a 422 validation error", async () => {
+      const err = new HttpError(422, "Unprocessable Entity");
+      const operation = jest.fn().mockRejectedValue(err);
+
+      await expect(withRetry(operation, makeConfig())).rejects.toThrow(err);
+      expect(operation).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries on a 429 Too Many Requests error", async () => {
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(new HttpError(429, "Too Many Requests"))
+        .mockResolvedValueOnce("ok");
+
+      const result = await withRetry(operation, makeConfig());
+      expect(result).toBe("ok");
+      expect(operation).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries on a 503 Service Unavailable error", async () => {
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(new HttpError(503, "Service Unavailable"))
+        .mockResolvedValueOnce("ok");
+
+      const result = await withRetry(operation, makeConfig());
+      expect(result).toBe("ok");
+      expect(operation).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries on a non-HTTP network error (e.g. ECONNREFUSED)", async () => {
+      const networkError = new Error("ECONNREFUSED");
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce("ok");
+
+      const result = await withRetry(operation, makeConfig());
+      expect(result).toBe("ok");
+      expect(operation).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("onRetry callback", () => {
+    it("calls onRetry with the attempt number, delay, and error on each retry", async () => {
+      const retriedErrors: unknown[] = [];
+      const retriedAttempts: number[] = [];
+
+      const err = new HttpError(503, "Service Unavailable");
+      const operation = jest
+        .fn()
+        .mockRejectedValueOnce(err)
+        .mockResolvedValueOnce("ok");
+
+      await withRetry(operation, makeConfig(), (attempt, _delay, error) => {
+        retriedAttempts.push(attempt);
+        retriedErrors.push(error);
+      });
+
+      expect(retriedAttempts).toEqual([1]);
+      expect(retriedErrors).toEqual([err]);
+    });
+
+    it("calls onRetry once per retry, not on the final failure", async () => {
+      const onRetry = jest.fn();
+      const err = new HttpError(503, "Service Unavailable");
+      const operation = jest.fn().mockRejectedValue(err);
+
+      await expect(withRetry(operation, makeConfig({ maxRetries: 2 }), onRetry)).rejects.toThrow(err);
+
+      // maxRetries = 2 → 3 total calls, 2 retries
+      expect(operation).toHaveBeenCalledTimes(3);
+      expect(onRetry).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("maxRetries = 0", () => {
+    it("does not retry when maxRetries is 0", async () => {
+      const err = new HttpError(503, "Service Unavailable");
+      const operation = jest.fn().mockRejectedValue(err);
+
+      await expect(withRetry(operation, makeConfig({ maxRetries: 0 }))).rejects.toThrow(err);
+      expect(operation).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+describe("calculateDelay", () => {
+  const config: RetryConfig = {
+    maxRetries: 3,
+    initialDelayMs: 100,
+    maxDelayMs: 5000,
+    backoffMultiplier: 2,
+    retryableStatusCodes: DEFAULT_RETRY_CONFIG.retryableStatusCodes,
+  };
+
+  it("returns initialDelayMs for attempt 0", () => {
+    expect(calculateDelay(0, config)).toBe(100);
+  });
+
+  it("doubles the delay for attempt 1", () => {
+    expect(calculateDelay(1, config)).toBe(200);
+  });
+
+  it("doubles the delay again for attempt 2", () => {
+    expect(calculateDelay(2, config)).toBe(400);
+  });
+
+  it("caps the delay at maxDelayMs", () => {
+    // 100 * 2^10 = 102400 — well above 5000
+    expect(calculateDelay(10, config)).toBe(5000);
+  });
+
+  it("never exceeds maxDelayMs regardless of attempt number", () => {
+    for (let i = 0; i < 20; i++) {
+      expect(calculateDelay(i, config)).toBeLessThanOrEqual(config.maxDelayMs);
+    }
+  });
+
+  it("produces the expected geometric sequence: 100, 200, 400, 800, 1600, 3200, 5000", () => {
+    const expected = [100, 200, 400, 800, 1600, 3200, 5000];
+    expected.forEach((exp, i) => {
+      expect(calculateDelay(i, config)).toBe(exp);
+    });
+  });
+});
+
+describe("resolveRetryConfig", () => {
+  it("returns full defaults when called with no arguments", () => {
+    expect(resolveRetryConfig()).toEqual(DEFAULT_RETRY_CONFIG);
+  });
+
+  it("merges partial overrides with defaults", () => {
+    const config = resolveRetryConfig({ maxRetries: 5 });
+    expect(config.maxRetries).toBe(5);
+    expect(config.initialDelayMs).toBe(DEFAULT_RETRY_CONFIG.initialDelayMs);
+    expect(config.maxDelayMs).toBe(DEFAULT_RETRY_CONFIG.maxDelayMs);
+  });
+
+  it("uses supplied retryableStatusCodes when provided", () => {
+    const codes = [500, 503];
+    const config = resolveRetryConfig({ retryableStatusCodes: codes });
+    expect(config.retryableStatusCodes).toEqual(codes);
+  });
+});
+
+describe("HttpError", () => {
+  it("stores the status code", () => {
+    const err = new HttpError(502, "Bad Gateway");
+    expect(err.statusCode).toBe(502);
+    expect(err.message).toBe("Bad Gateway");
+    expect(err.name).toBe("HttpError");
+  });
+
+  it("is an instance of Error", () => {
+    expect(new HttpError(500, "Err")).toBeInstanceOf(Error);
+  });
+});
+
+describe("AnonVoteClient – retry integration", () => {
+  it("accepts a retryConfig in the constructor", () => {
+    const client = new AnonVoteClient({
+      encryptionKey: TEST_KEY,
+      retryConfig: { maxRetries: 5 },
+    });
+    expect(client).toBeInstanceOf(AnonVoteClient);
+  });
+
+  it("exposes an execute method that retries transient failures", async () => {
+    const client = new AnonVoteClient({
+      encryptionKey: TEST_KEY,
+      retryConfig: { maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0 },
+    });
+
+    const operation = jest
+      .fn()
+      .mockRejectedValueOnce(new HttpError(503, "Service Unavailable"))
+      .mockResolvedValueOnce("done");
+
+    const result = await client.execute(operation);
+    expect(result).toBe("done");
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
+
+  it("execute does not retry on a permanent 400 error", async () => {
+    const client = new AnonVoteClient({
+      encryptionKey: TEST_KEY,
+      retryConfig: { maxRetries: 3, initialDelayMs: 0, maxDelayMs: 0 },
+    });
+
+    const err = new HttpError(400, "Bad Request");
+    const operation = jest.fn().mockRejectedValue(err);
+
+    await expect(client.execute(operation)).rejects.toThrow(err);
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onRetry callback when retrying", async () => {
+    const client = new AnonVoteClient({
+      encryptionKey: TEST_KEY,
+      retryConfig: { maxRetries: 2, initialDelayMs: 0, maxDelayMs: 0 },
+    });
+
+    const retryLog: number[] = [];
+    client.onRetry = (attempt) => { retryLog.push(attempt); };
+
+    const operation = jest
+      .fn()
+      .mockRejectedValueOnce(new HttpError(502, "Bad Gateway"))
+      .mockResolvedValueOnce("ok");
+
+    await client.execute(operation);
+    expect(retryLog).toEqual([1]);
+  });
+
+  it("sleep resolves after the specified delay", async () => {
+    const start = Date.now();
+    await sleep(50);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(40);
+  });
+});

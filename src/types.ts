@@ -167,11 +167,50 @@ export interface LoginResponse {
 // ── Client SDK Types ──────────────────────────────────────────────────────────
 
 /**
+ * Configuration for automatic retry with exponential backoff.
+ *
+ * Retries are only attempted for transient failures (network errors or
+ * specific HTTP status codes). Permanent failures (e.g. 4xx except 429)
+ * are not retried.
+ */
+export interface RetryConfig {
+  /**
+   * Maximum number of retry attempts before giving up.
+   * @default 3
+   */
+  maxRetries: number;
+  /**
+   * Initial delay in milliseconds before the first retry.
+   * @default 100
+   */
+  initialDelayMs: number;
+  /**
+   * Maximum delay in milliseconds between retries. The exponential
+   * backoff is capped at this value.
+   * @default 5000
+   */
+  maxDelayMs: number;
+  /**
+   * Multiplier applied to the delay on each successive retry.
+   * Delay formula: min(initialDelayMs * backoffMultiplier^attempt, maxDelayMs)
+   * @default 2
+   */
+  backoffMultiplier: number;
+  /**
+   * HTTP status codes that should trigger a retry.
+   * @default [408, 429, 500, 502, 503, 504]
+   */
+  retryableStatusCodes: number[];
+}
+
+/**
  * Configuration options for the AnonVoteClient.
  */
 export interface ClientConfig {
   /** The encryption key used for vote encryption (64-char hex string). */
   encryptionKey?: string;
+  /** Optional retry configuration. Defaults are applied for any omitted fields. */
+  retryConfig?: Partial<RetryConfig>;
 }
 
 /**
