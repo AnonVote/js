@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "@anonvote/crypto",
   "version": "1.4.0",
   "description": "Cryptographic primitives and token utilities for the AnonVote ecosystem",
@@ -49,8 +49,8 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {},
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/jest": "29.5.12",
     "@types/node": "20.11.30",
     "@typescript-eslint/eslint-plugin": "8.33.1",
@@ -60,6 +60,7 @@
     "tinybench": "2.9.0",
     "ts-jest": "29.1.2",
     "tsx": "4.16.0",
-    "typescript": "5.4.3"
+    "typescript": "5.4.3",
+    "typescript-eslint": "^8.65.0"
   }
 }
