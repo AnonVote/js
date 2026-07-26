@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@anonvote/crypto",
   "version": "1.4.0",
   "description": "Cryptographic primitives and token utilities for the AnonVote ecosystem",
