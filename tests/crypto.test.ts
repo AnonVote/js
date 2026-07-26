@@ -80,6 +80,51 @@ describe("generateToken", () => {
     }
     expect(tokens.size).toBe(1000);
   });
+
+  describe("edge runtime compatibility", () => {
+    const originalCrypto = globalThis.crypto;
+
+    afterEach(() => {
+      // Restore whatever was there before each test (real crypto in Node's
+      // test environment) so other tests aren't affected.
+      Object.defineProperty(globalThis, "crypto", {
+        value: originalCrypto,
+        configurable: true,
+      });
+    });
+
+    it("uses globalThis.crypto.getRandomValues when it's available", () => {
+      const getRandomValues = jest.fn((arr: Uint8Array) => {
+        // Fill deterministically so we can assert on the output.
+        arr.fill(0xab);
+        return arr;
+      });
+
+      Object.defineProperty(globalThis, "crypto", {
+        value: { getRandomValues },
+        configurable: true,
+      });
+
+      const token = generateToken();
+
+      expect(getRandomValues).toHaveBeenCalledTimes(1);
+      expect(getRandomValues.mock.calls[0][0]).toBeInstanceOf(Uint8Array);
+      expect(getRandomValues.mock.calls[0][0]).toHaveLength(32);
+      expect(token).toBe("ab".repeat(32));
+    });
+
+    it("falls back to Node's crypto.randomBytes when getRandomValues is unavailable", () => {
+      Object.defineProperty(globalThis, "crypto", {
+        value: undefined,
+        configurable: true,
+      });
+
+      const token = generateToken();
+
+      expect(token).toHaveLength(64);
+      expect(token).toMatch(/^[0-9a-f]+$/);
+    });
+  });
 });
 
 describe("hashToken", () => {
@@ -138,5 +183,30 @@ describe("encryptVote / decryptVote", () => {
     const encrypted = encryptVote("Yes", TEST_KEY);
     const tampered = { ...encrypted, authTag: "00".repeat(16) };
     expect(() => decryptVote(tampered, TEST_KEY)).toThrow();
+  });
+
+  it("generates the IV via globalThis.crypto.getRandomValues when it's available", () => {
+    const originalCrypto = globalThis.crypto;
+    const getRandomValues = jest.fn((arr: Uint8Array) => {
+      arr.fill(0x11);
+      return arr;
+    });
+
+    Object.defineProperty(globalThis, "crypto", {
+      value: { getRandomValues },
+      configurable: true,
+    });
+
+    try {
+      const encrypted = encryptVote("Yes", TEST_KEY);
+      expect(getRandomValues).toHaveBeenCalledTimes(1);
+      expect(getRandomValues.mock.calls[0][0]).toHaveLength(12);
+      expect(encrypted.iv).toBe("11".repeat(12));
+    } finally {
+      Object.defineProperty(globalThis, "crypto", {
+        value: originalCrypto,
+        configurable: true,
+      });
+    }
   });
 });

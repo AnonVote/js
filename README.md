@@ -2,7 +2,7 @@
 
 **The cryptographic primitives and token utilities powering AnonVote.**
 
-This package is the canonical source of all crypto and token logic used across the AnonVote ecosystem. It is framework-agnostic, has zero runtime dependencies, and runs in Node.js and edge runtimes.
+This package is the canonical source of all crypto and token logic used across the AnonVote ecosystem. It is framework-agnostic and has zero runtime dependencies. Runtime support varies by function — see [Runtime support](#runtime-support) below.
 
 [![npm](https://img.shields.io/npm/v/@anonvote/crypto)](https://www.npmjs.com/package/@anonvote/crypto)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -24,13 +24,13 @@ This package is the canonical source of all crypto and token logic used across t
 
 ### Cryptographic utilities (`src/crypto.ts`)
 
-| Export                       | Description                                                                                                        |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `hashIdentifier(id)`         | SHA-256 hash of a voter identifier. Trims and lowercases before hashing. Never store originals — only hashes.      |
-| `generateToken()`            | Generates a 32-byte (256-bit) CSPRNG token as a hex string. Used for one-time voter tokens.                        |
-| `hashToken(token)`           | SHA-256 hash of a raw token. Only the hash is ever persisted — the raw value is given to the voter and discarded.  |
-| `encryptVote(optionId, key)` | AES-256-GCM encryption of a vote option ID. Returns `iv:authTag:ciphertext` in base64. Requires a 32-byte hex key. |
-| `decryptVote(payload, key)`  | Decrypts a vote payload produced by `encryptVote`. Used only by the result tally engine.                           |
+| Export                       | Description                                                                                                        | Edge runtime support |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| `hashIdentifier(id)`         | SHA-256 hash of a voter identifier. Trims and lowercases before hashing. Never store originals — only hashes.      | No — Node.js `crypto` only |
+| `generateToken()`            | Generates a 32-byte (256-bit) CSPRNG token as a hex string. Used for one-time voter tokens.                        | Yes |
+| `hashToken(token)`           | SHA-256 hash of a raw token. Only the hash is ever persisted — the raw value is given to the voter and discarded.  | No — Node.js `crypto` only |
+| `encryptVote(optionId, key)` | AES-256-GCM encryption of a vote option ID. Returns `iv:authTag:ciphertext` in base64. Requires a 32-byte hex key. | No — Node.js `crypto` only |
+| `decryptVote(payload, key)`  | Decrypts a vote payload produced by `encryptVote`. Used only by the result tally engine.                           | No — Node.js `crypto` only |
 
 ### Types (`src/types.ts`)
 
@@ -74,12 +74,31 @@ const optionId = decryptVote(encrypted, BALLOT_KEY);
 
 ---
 
+## Runtime support
+
+Support differs per export — this package is **not** uniformly edge-compatible:
+
+| Runtime                                                    | `generateToken` | `hashIdentifier` / `hashToken` | `encryptVote` / `decryptVote` |
+| ----------------------------------------------------------- | :--------------: | :-----------------------------: | :------------------------------: |
+| Node.js                                                      | ✅               | ✅                              | ✅                               |
+| Cloudflare Workers / Vercel Edge Functions (no compat flag)  | ✅               | ❌                              | ❌                               |
+| Cloudflare Workers with `nodejs_compat`                      | ✅               | ✅                              | ✅                               |
+
+- **`generateToken`** uses the Web Crypto API (`globalThis.crypto.getRandomValues`) when it's available, and falls back to Node's `crypto.randomBytes` otherwise. This makes it work in Node.js and in edge runtimes without any bundler configuration.
+- **`hashIdentifier`, `hashToken`, `encryptVote`, and `decryptVote`** call into Node's `crypto` module (`createHash`, `createCipheriv`, `createDecipheriv`) via a lazy `require("crypto")` inside each function body, so importing this package never pulls Node's `crypto` module into an edge bundle at build time. But calling these four functions still requires an environment where Node's `crypto` module actually resolves at runtime — plain Cloudflare Workers or Vercel Edge Functions without a Node.js compatibility layer will throw when they're called.
+  - We evaluated replacing the AES-256-GCM cipher calls with the Web Crypto API's `SubtleCrypto.encrypt`/`decrypt`, which is supported across Node.js, browsers, and edge runtimes. However, `SubtleCrypto` methods are Promise-based, while `encryptVote`/`decryptVote` are currently synchronous. Switching would mean an async API — a breaking change for existing callers — so it wasn't done here. If broader edge support for encryption is needed, it would need to ship as a new async API (e.g. `encryptVoteAsync`) rather than changing the existing signatures.
+  - The same sync/async constraint applies to `hashIdentifier`/`hashToken`, since `SubtleCrypto.digest` is also async.
+- **Bundler note:** `getNodeCrypto()` in `src/crypto.ts` calls `require("crypto")` from inside a function body rather than as a top-level import. Do not change this to a top-level `import` or a top-level `try { require("crypto") }` — either pattern causes some edge bundlers to include Node's `crypto` module in the output even along code paths that never call it.
+- Browser bundle support and Deno-specific testing are out of scope for this package.
+
+---
+
 ## Privacy guarantees
 
 These primitives enforce AnonVote's structural unlinkability model:
 
 - `hashIdentifier` and `hashToken` are **one-way** — original values are unrecoverable from the database
-- `generateToken` uses Node.js `crypto.randomBytes` — cryptographically secure and unpredictable
+- `generateToken` uses the Web Crypto API's `getRandomValues` when available, falling back to Node.js `crypto.randomBytes` — cryptographically secure and unpredictable in either case
 - `encryptVote` uses **AES-256-GCM** — authenticated encryption; tampered ciphertexts are rejected at decryption
 - No identifier is ever stored alongside a token — the hash functions operate independently on different data
 
