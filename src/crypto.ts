@@ -72,7 +72,8 @@ function bytesToHex(bytes: Uint8Array): string {
  * SHA-256 hash of a voter identifier.
  *
  * Used to store eligibility entries without retaining the original identifier.
- * Input is trimmed and lowercased before hashing for consistency.
+ * Input is trimmed and lowercased before hashing for consistency — always
+ * normalize before hashing to avoid duplicate entries for the same voter.
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
  * compatibility layer, e.g. Cloudflare Workers' `nodejs_compat` flag) —
@@ -84,6 +85,7 @@ function bytesToHex(bytes: Uint8Array): string {
  *
  * @example
  * const hash = hashIdentifier("alice@example.com");
+ * // hash === "3d0a9f2e..." (deterministic for the same input)
  */
 export function hashIdentifier(id: string): string {
   return getNodeCrypto()
@@ -95,17 +97,20 @@ export function hashIdentifier(id: string): string {
 /**
  * Generate a cryptographically secure random voter token.
  *
- * 32 bytes = 256 bits of entropy, hex encoded.
- * The raw value is given to the voter — never persisted server-side.
- * Use {@link hashToken} to store the server-side reference.
+ * Produces 32 bytes (256 bits) of entropy via Node.js `crypto.randomBytes`,
+ * encoded as a 64-character hex string. The raw value is given to the voter —
+ * never persisted server-side. Use {@link hashToken} to store the server-side
+ * reference.
+ *
+ * @returns A 64-character hex string representing a 256-bit random token.
  *
  * Works in Node.js and in edge runtimes (Cloudflare Workers, Vercel Edge
  * Functions) via the Web Crypto API — see the "Runtime support" section
  * of the README.
  *
  * @example
- * const rawToken = generateToken(); // give to voter
- * const storedHash = hashToken(rawToken); // store this
+ * const rawToken = generateToken(); // give this to the voter
+ * const storedHash = hashToken(rawToken); // store only this
  */
 export function generateToken(): string {
   return bytesToHex(getRandomBytes(32));
@@ -115,13 +120,19 @@ export function generateToken(): string {
  * SHA-256 hash of a raw voter token.
  *
  * Only the hash is stored in the database — the raw token is never persisted.
- * This enforces structural unlinkability between token issuance and vote submission.
+ * This enforces structural unlinkability between token issuance and vote
+ * submission. The raw token should be discarded after hashing.
+ *
+ * @param token - The raw hex token string produced by {@link generateToken}.
+ * @returns A 64-character lowercase hex string (SHA-256 digest of the token).
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
  * compatibility layer) — see the "Runtime support" section of the README.
  *
  * @example
- * const hash = hashToken(rawToken);
+ * const rawToken = generateToken();
+ * const storedHash = hashToken(rawToken);
+ * // Store storedHash in the database; discard rawToken after giving it to the voter.
  */
 export function hashToken(token: string): string {
   return getNodeCrypto().createHash("sha256").update(token).digest("hex");
@@ -131,7 +142,8 @@ export function hashToken(token: string): string {
  * Encrypt a vote option using AES-256-GCM.
  *
  * The encrypted payload stores only the selected option — no voter identity,
- * no token value. Authenticated encryption ensures tampering is detectable.
+ * no token value. Authenticated encryption (GCM mode) ensures any tampering
+ * is detectable at decryption time.
  *
  * The IV is generated via the cross-runtime {@link getRandomBytes} helper,
  * but the AES-256-GCM cipher itself uses Node's `crypto.createCipheriv`.
@@ -148,6 +160,7 @@ export function hashToken(token: string): string {
  *
  * @example
  * const encrypted = encryptVote("Yes", process.env.BALLOT_ENCRYPTION_KEY!);
+ * // encrypted === { ciphertext: "...", iv: "...", authTag: "..." }
  */
 export function encryptVote(option: string, key: string): EncryptedPayload {
   if (key.length !== 64) {
@@ -177,8 +190,8 @@ export function encryptVote(option: string, key: string): EncryptedPayload {
 /**
  * Decrypt a vote payload encrypted with {@link encryptVote}.
  *
- * Should only be called by the result tally engine. Any payload tampering
- * is detected and rejected by GCM authentication tag verification.
+ * Should only be called by the result tally engine. GCM authentication tag
+ * verification detects and rejects any payload that has been tampered with.
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
  * compatibility layer) — see the "Runtime support" section of the README.
@@ -189,6 +202,7 @@ export function encryptVote(option: string, key: string): EncryptedPayload {
  *
  * @example
  * const option = decryptVote(encryptedPayload, process.env.BALLOT_ENCRYPTION_KEY!);
+ * // option === "Yes"
  */
 export function decryptVote(payload: EncryptedPayload, key: string): string {
   const { createDecipheriv } = getNodeCrypto();
