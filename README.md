@@ -2,11 +2,39 @@
 
 **The cryptographic primitives and token utilities powering AnonVote.**
 
-This package is the canonical source of all crypto and token logic used across the AnonVote ecosystem. It is framework-agnostic, has zero runtime dependencies, and runs in Node.js and edge runtimes.
+This package is the canonical source of all crypto and token logic used across the AnonVote ecosystem. It is framework-agnostic and has zero runtime dependencies. Runtime support varies by function — see [Runtime support](#runtime-support) below.
 
 [![npm](https://img.shields.io/npm/v/@anonvote/crypto)](https://www.npmjs.com/package/@anonvote/crypto)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+
+---
+
+## Role in the ecosystem
+
+| Repo                                                        | Depends on this package                  |
+| ----------------------------------------------------------- | ---------------------------------------- |
+| [AnonVote/core](https://github.com/AnonVote/core)           | Yes — backend imports `@anonvote/crypto` |
+| [AnonVote/contracts](https://github.com/AnonVote/contracts) | No — Soroban contracts use native Rust   |
+| [AnonVote/docs](https://github.com/AnonVote/docs)           | References this package in spec docs     |
+
+---
+
+## What's in this package
+
+### Cryptographic utilities (`src/crypto.ts`)
+
+| Export                       | Description                                                                                                        | Edge runtime support |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| `hashIdentifier(id)`         | SHA-256 hash of a voter identifier. Trims and lowercases before hashing. Never store originals — only hashes.      | No — Node.js `crypto` only |
+| `generateToken()`            | Generates a 32-byte (256-bit) CSPRNG token as a hex string. Used for one-time voter tokens.                        | Yes |
+| `hashToken(token)`           | SHA-256 hash of a raw token. Only the hash is ever persisted — the raw value is given to the voter and discarded.  | No — Node.js `crypto` only |
+| `encryptVote(optionId, key)` | AES-256-GCM encryption of a vote option ID. Returns `iv:authTag:ciphertext` in base64. Requires a 32-byte hex key. | No — Node.js `crypto` only |
+| `decryptVote(payload, key)`  | Decrypts a vote payload produced by `encryptVote`. Used only by the result tally engine.                           | No — Node.js `crypto` only |
+
+### Types (`src/types.ts`)
+
+Core shared TypeScript types for votes, tokens, ballots, and audit events — used by both the backend API and any future client SDKs.
 
 ---
 
@@ -160,7 +188,7 @@ Never log or commit this value. Store it as a secret in your deployment environm
 These primitives enforce AnonVote's structural unlinkability model:
 
 - `hashIdentifier` and `hashToken` are **one-way** — original values are unrecoverable from the database
-- `generateToken` uses Node.js `crypto.randomBytes` — cryptographically secure and unpredictable
+- `generateToken` uses the Web Crypto API's `getRandomValues` when available, falling back to Node.js `crypto.randomBytes` — cryptographically secure and unpredictable in either case
 - `encryptVote` uses **AES-256-GCM** — authenticated encryption; tampered ciphertexts are rejected at decryption
 - No identifier is ever stored alongside a token — the hash functions operate independently on different data
 
@@ -196,11 +224,23 @@ npm run build
 
 ### Scripts
 
-| Command | Description |
-| ------- | ----------- |
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm test` | Run unit tests with Jest |
-| `npm run lint` | ESLint check |
+| Command              | Description                          |
+| -------------------- | ------------------------------------ |
+| `npm run build`      | Compile TypeScript to `dist/`        |
+| `npm test`           | Run unit tests with Jest             |
+| `npm run lint`       | ESLint check on `src/` and `tests/`  |
+| `npm run lint:fix`   | Auto-fix fixable lint issues         |
+
+### Pre-commit checklist
+
+Before committing, run lint and tests manually:
+
+```bash
+npm run lint   # must exit 0 — no errors allowed
+npm test       # must pass
+```
+
+The `no-console` rule is enforced as an error. If lint flags a `console.*` in `src/`, remove it — do not add an eslint-disable comment.
 
 ---
 

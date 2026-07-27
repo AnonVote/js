@@ -1,11 +1,13 @@
 import { randomBytes } from "crypto";
 import { encryptVote, decryptVote } from "./crypto";
 import { ValidationError } from "./errors";
+import { withRetry, resolveRetryConfig } from "./retry";
 import type {
   Election,
   ElectionOption,
   VoteReceipt,
   ClientConfig,
+  RetryConfig,
   CreateElectionParams,
   CastVoteParams,
   EncryptedPayload,
@@ -61,6 +63,23 @@ export interface SerializedElection {
  */
 export class AnonVoteClient {
   private readonly config: ClientConfig;
+  private readonly retryConfig: RetryConfig;
+
+  /**
+   * Optional callback invoked before each retry attempt. Receives the
+   * 1-based attempt number, the computed backoff delay in milliseconds, and
+   * the error that caused the retry. Override this on the instance to add
+   * custom logging without violating the no-console lint rule.
+   *
+   * @example
+   * ```typescript
+   * const client = new AnonVoteClient({ encryptionKey: key });
+   * client.onRetry = (attempt, delayMs, error) => {
+   *   myLogger.warn(`Retry attempt ${attempt} after ${delayMs}ms`, error);
+   * };
+   * ```
+   */
+  onRetry?: (attempt: number, delayMs: number, error: unknown) => void;
 
   /**
    * Creates a new `AnonVoteClient` instance.
@@ -73,6 +92,31 @@ export class AnonVoteClient {
    */
   constructor(config: ClientConfig = {}) {
     this.config = config;
+    this.retryConfig = resolveRetryConfig(config.retryConfig);
+  }
+
+  /**
+   * Executes an async operation with automatic retry and exponential backoff
+   * using the client's configured {@link RetryConfig}.
+   *
+   * Useful for wrapping HTTP calls that talk to the AnonVote backend:
+   *
+   * @example
+   * ```typescript
+   * const result = await client.execute(() =>
+   *   fetch(`${apiUrl}/ballots`, { method: "POST", body: JSON.stringify(data) })
+   *     .then(async (res) => {
+   *       if (!res.ok) throw new HttpError(res.status, res.statusText);
+   *       return res.json();
+   *     })
+   * );
+   * ```
+   *
+   * @param operation - Async operation to execute and potentially retry.
+   * @returns The resolved value of the operation.
+   */
+  execute<T>(operation: () => Promise<T>): Promise<T> {
+    return withRetry(operation, this.retryConfig, this.onRetry?.bind(this));
   }
 
   /**
@@ -406,7 +450,7 @@ export class AnonVoteClient {
    */
   private generateId(prefix: string): string {
     const bytes = randomBytes(16);
-    const hex = Array.from(bytes as unknown as number[])
+    const hex = Array.from(bytes)
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
