@@ -14,6 +14,10 @@ export {
   decryptVote,
 } from "./crypto";
 
+// Retry utility
+export { withRetry, resolveRetryConfig, calculateDelay, HttpError, DEFAULT_RETRY_CONFIG } from "./retry";
+export type { RetryConfig } from "./types";
+
 // Client SDK
 export { AnonVoteClient } from "./client";
 
