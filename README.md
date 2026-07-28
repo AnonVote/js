@@ -75,34 +75,53 @@ const optionId = decryptVote(encrypted, BALLOT_KEY);
 
 ---
 
-## Usage: AnonVoteClient
+## Usage: AnonVoteClient SDK
+
+The AnonVoteClient SDK is the recommended way to integrate AnonVote into your application. It lives at the `@anonvote/crypto/client` subpath so consumers of only the raw primitives don't pay the import cost.
+
+```bash
+npm install @anonvote/crypto
+```
 
 ```typescript
-import { AnonVoteClient } from "@anonvote/crypto";
+import { randomBytes } from "crypto";
+import { AnonVoteClient } from "@anonvote/crypto/client";
 
-const client = new AnonVoteClient({
-  encryptionKey: process.env.BALLOT_ENCRYPTION_KEY!,
-});
+// Generate a fresh key per ballot — never reuse across ballots
+const ballotKey = randomBytes(32).toString("hex");
 
-// Create an election
+const client = new AnonVoteClient({ ballotKey });
+
+// 1. Create an election (pure client-side, no network)
 const election = client.createElection({
-  title: "Board Election 2024",
-  description: "Elect the new board members",
-  options: ["Alice", "Bob", "Charlie"],
-  startTime: Date.now(),
-  endTime: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  title: "Board Election 2026",
+  description: "Elect two new board members.",
+  options: ["Alice", "Bob", "Abstain"],
+  startTime: new Date(),
+  endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 });
 
-// Cast a vote using the election returned above
-const receipt = client.castVote({
-  ballotId: election.id,
-  voteOption: election.options[0].text,
-});
+// 2. Cast a vote — pass the option UUID, not the label
+const ballot = client.castVote(election, election.options[0].id);
 
-// Verify the receipt returned by castVote
-const isValid = client.verifyVote(receipt.encryptedPayload);
-console.log(isValid); // true
+// 3. Verify locally before submitting
+const result = client.verifyVote(ballot);
+console.log(result.confirmed); // true
+
+// 4. Serialize for server submission — optionId is intentionally excluded
+const json = client.serialize(ballot);
+await fetch("/api/votes", { method: "POST", body: json });
+
+// 5. Deserialize a stored ballot
+const restored = client.deserialize(json);
 ```
+
+### Key guarantees
+
+- The constructor throws immediately if `ballotKey` is not a valid 64-character hex string — misconfigured clients fail at construction, not at the first crypto operation.
+- `castVote` never logs the `optionId`. The option the voter chose stays local.
+- `serialize` omits `optionId` — only the encrypted payload reaches the server.
+- `verifyVote` propagates decryption errors rather than silently returning `false`. A corrupted payload is a different failure mode from an option mismatch.
 
 ---
 
@@ -249,15 +268,21 @@ The `no-console` rule is enforced as an error. If lint flags a `console.*` in `s
 ```
 js/
 ├── src/
-│   ├── crypto.ts     # Core cryptographic functions
-│   ├── client.ts     # AnonVoteClient SDK
+│   ├── client/
+│   │   ├── index.ts  # AnonVoteClient SDK (@anonvote/crypto/client)
+│   │   └── types.ts  # Domain-level SDK types
+│   ├── crypto.ts     # Core cryptographic primitives
+│   ├── client.ts     # Low-level retry-aware client (root export)
 │   ├── errors.ts     # Error classes
+│   ├── retry.ts      # Exponential backoff retry utility
 │   ├── types.ts      # Shared TypeScript types
 │   └── index.ts      # Public API re-exports
 ├── tests/
 │   ├── crypto.test.ts
 │   ├── client.test.ts
+│   ├── sdk-client.test.ts  # AnonVoteClient SDK tests (issue #42)
 │   └── errors.test.ts
+├── DECISIONS.md      # Architecture decision records
 ├── package.json
 └── tsconfig.json
 ```
