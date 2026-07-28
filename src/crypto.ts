@@ -1,4 +1,4 @@
-import {
+﻿import {
   createHash,
   randomBytes,
   createCipheriv,
@@ -8,10 +8,32 @@ import type { EncryptedPayload } from "./types";
 import { CryptoError, ValidationError } from "./errors";
 
 /**
+ * Normalizes a voter identifier so that equivalent identifiers â€” differing
+ * only in whitespace, case, Unicode representation, or incidental
+ * punctuation â€” collapse to the same string before hashing.
+ *
+ * Steps applied, in order:
+ *  1. Trim leading/trailing whitespace.
+ *  2. Lowercase.
+ *  3. Unicode-normalize to NFC (so combining-mark and precomposed forms
+ *     of the same character match).
+ *  4. Strip any character that isn't alphanumeric, `-`, or `_`.
+ */
+function normalizeIdentifier(id: string): string {
+  return id
+    .trim()
+    .toLowerCase()
+    .normalize("NFC")
+    .replace(/[^a-z0-9-_]/g, "");
+}
+
+/**
  * SHA-256 hash of a voter identifier.
  *
  * Used to store eligibility entries without retaining the original identifier.
- * Input is trimmed and lowercased before hashing for consistency.
+ * The identifier is normalized (see {@link normalizeIdentifier}) before hashing
+ * so that whitespace, case, Unicode form, and stray punctuation don't cause
+ * validation mismatches.
  *
  * @warning This is a breaking change for any existing hashed data. Any eligibility
  * data hashed with the unnormalized version will no longer match after this fix.
@@ -21,14 +43,14 @@ import { CryptoError, ValidationError } from "./errors";
  * const hash = hashIdentifier("alice@example.com");
  */
 export function hashIdentifier(id: string): string {
-  return createHash("sha256").update(id.trim().toLowerCase()).digest("hex");
+  return createHash("sha256").update(normalizeIdentifier(id)).digest("hex");
 }
 
 /**
  * Generate a cryptographically secure random voter token.
  *
  * 32 bytes = 256 bits of entropy, hex encoded.
- * The raw value is given to the voter — never persisted server-side.
+ * The raw value is given to the voter â€” never persisted server-side.
  * Use {@link hashToken} to store the server-side reference.
  *
  * @example
@@ -42,7 +64,7 @@ export function generateToken(): string {
 /**
  * SHA-256 hash of a raw voter token.
  *
- * Only the hash is stored in the database — the raw token is never persisted.
+ * Only the hash is stored in the database â€” the raw token is never persisted.
  * This enforces structural unlinkability between token issuance and vote submission.
  *
  * @example
@@ -55,7 +77,7 @@ export function hashToken(token: string): string {
 /**
  * Encrypt a vote option using AES-256-GCM.
  *
- * The encrypted payload stores only the selected option — no voter identity,
+ * The encrypted payload stores only the selected option â€” no voter identity,
  * no token value. Authenticated encryption ensures tampering is detectable.
  *
  * @param option - The raw vote option string to encrypt

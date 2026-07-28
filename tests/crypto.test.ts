@@ -1,4 +1,4 @@
-import {
+﻿import {
   hashIdentifier,
   generateToken,
   hashToken,
@@ -41,6 +41,24 @@ describe("hashIdentifier", () => {
   it("normalizes uppercase: ALICE@EXAMPLE.COM === alice@example.com", () => {
     expect(hashIdentifier("ALICE@EXAMPLE.COM")).toBe(
       hashIdentifier("alice@example.com"),
+    );
+  });
+
+  it("normalizes different Unicode representations to the same hash", () => {
+    const nfc = "jos\u00E9@example.com";
+    const nfd = "jose\u0301@example.com";
+    expect(hashIdentifier(nfc)).toBe(hashIdentifier(nfd));
+  });
+
+  it("strips stray punctuation/symbols not in [a-z0-9-_]", () => {
+    expect(hashIdentifier("alice!example#com")).toBe(
+      hashIdentifier("aliceexamplecom"),
+    );
+  });
+
+  it("keeps hyphens and underscores intact", () => {
+    expect(hashIdentifier("alice-bob_123")).toBe(
+      hashIdentifier("ALICE-BOB_123"),
     );
   });
 
@@ -97,7 +115,7 @@ describe("hashToken", () => {
   });
 
   it("differs from hashIdentifier for the same input", () => {
-    // hashToken does not trim/lowercase — they should differ
+    // hashToken does not trim/lowercase â€” they should differ
     expect(hashToken("ALICE")).not.toBe(hashIdentifier("ALICE"));
   });
 });
