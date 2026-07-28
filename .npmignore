@@ -1,0 +1,13 @@
+# Exclude tests
+tests/
+
+# Exclude source files (only dist/ should be published)
+src/
+
+# Exclude build configuration
+tsconfig.json
+jest.config.js
+
+# Exclude source maps
+*.js.map
+*.d.ts.map
