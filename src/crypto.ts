@@ -1,4 +1,4 @@
-import type { EncryptedPayload } from "./types";
+﻿import type { EncryptedPayload } from "./types";
 import { CryptoError, ValidationError } from "./errors";
 
 /**
@@ -32,7 +32,7 @@ function getWebCrypto(): MinimalWebCrypto | undefined {
  * This must only ever be called from inside a function body, never at
  * module load time. Bundlers targeting edge runtimes (Cloudflare Workers,
  * Vercel Edge) resolve top-level imports eagerly, so a top-level
- * `import "crypto"` — or even a top-level `try { require("crypto") }` —
+ * `import "crypto"` â€” or even a top-level `try { require("crypto") }` â€”
  * causes them to bundle Node's crypto module into edge output even when
  * it's never called. A `require()` inside a function body is only
  * evaluated if that function actually runs, which keeps edge bundles free
@@ -69,14 +69,35 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 /**
+ * Normalizes a voter identifier so that equivalent identifiers â€” differing
+ * only in whitespace, case, Unicode representation, or incidental
+ * punctuation â€” collapse to the same string before hashing.
+ *
+ * Steps applied, in order:
+ *  1. Trim leading/trailing whitespace.
+ *  2. Lowercase.
+ *  3. Unicode-normalize to NFC (so combining-mark and precomposed forms
+ *     of the same character match).
+ *  4. Strip any character that isn't alphanumeric, `-`, or `_`.
+ */
+function normalizeIdentifier(id: string): string {
+  return id
+    .trim()
+    .toLowerCase()
+    .normalize("NFC")
+    .replace(/[^a-z0-9-_]/g, "");
+}
+
+/**
  * SHA-256 hash of a voter identifier.
  *
  * Used to store eligibility entries without retaining the original identifier.
- * Input is trimmed and lowercased before hashing for consistency — always
- * normalize before hashing to avoid duplicate entries for the same voter.
+ * Input is normalized (see {@link normalizeIdentifier}) before hashing â€”
+ * always normalize before hashing to avoid duplicate entries for the same
+ * voter.
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
- * compatibility layer, e.g. Cloudflare Workers' `nodejs_compat` flag) —
+ * compatibility layer, e.g. Cloudflare Workers' `nodejs_compat` flag) â€”
  * see the "Runtime support" section of the README.
  *
  * @warning This is a breaking change for any existing hashed data. Any eligibility
@@ -90,7 +111,7 @@ function bytesToHex(bytes: Uint8Array): string {
 export function hashIdentifier(id: string): string {
   return getNodeCrypto()
     .createHash("sha256")
-    .update(id.trim().toLowerCase())
+    .update(normalizeIdentifier(id))
     .digest("hex");
 }
 
@@ -98,14 +119,14 @@ export function hashIdentifier(id: string): string {
  * Generate a cryptographically secure random voter token.
  *
  * Produces 32 bytes (256 bits) of entropy via Node.js `crypto.randomBytes`,
- * encoded as a 64-character hex string. The raw value is given to the voter —
+ * encoded as a 64-character hex string. The raw value is given to the voter â€”
  * never persisted server-side. Use {@link hashToken} to store the server-side
  * reference.
  *
  * @returns A 64-character hex string representing a 256-bit random token.
  *
  * Works in Node.js and in edge runtimes (Cloudflare Workers, Vercel Edge
- * Functions) via the Web Crypto API — see the "Runtime support" section
+ * Functions) via the Web Crypto API â€” see the "Runtime support" section
  * of the README.
  *
  * @example
@@ -119,7 +140,7 @@ export function generateToken(): string {
 /**
  * SHA-256 hash of a raw voter token.
  *
- * Only the hash is stored in the database — the raw token is never persisted.
+ * Only the hash is stored in the database â€” the raw token is never persisted.
  * This enforces structural unlinkability between token issuance and vote
  * submission. The raw token should be discarded after hashing.
  *
@@ -127,7 +148,7 @@ export function generateToken(): string {
  * @returns A 64-character lowercase hex string (SHA-256 digest of the token).
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
- * compatibility layer) — see the "Runtime support" section of the README.
+ * compatibility layer) â€” see the "Runtime support" section of the README.
  *
  * @example
  * const rawToken = generateToken();
@@ -141,18 +162,18 @@ export function hashToken(token: string): string {
 /**
  * Encrypt a vote option using AES-256-GCM.
  *
- * The encrypted payload stores only the selected option — no voter identity,
+ * The encrypted payload stores only the selected option â€” no voter identity,
  * no token value. Authenticated encryption (GCM mode) ensures any tampering
  * is detectable at decryption time.
  *
  * The IV is generated via the cross-runtime {@link getRandomBytes} helper,
  * but the AES-256-GCM cipher itself uses Node's `crypto.createCipheriv`.
  * Node's cipher API is synchronous, while the Web Crypto equivalent
- * (`SubtleCrypto.encrypt`) is Promise-based — swapping to it would change
+ * (`SubtleCrypto.encrypt`) is Promise-based â€” swapping to it would change
  * this function's signature from sync to async, a breaking change that's
  * out of scope here. So `encryptVote`/`decryptVote` still require Node.js's
  * `crypto` module (or an edge runtime with a Node.js compatibility layer)
- * — see the "Runtime support" section of the README.
+ * â€” see the "Runtime support" section of the README.
  *
  * @param option - The raw vote option string to encrypt
  * @param key    - 64-char hex string (32 bytes), from BALLOT_ENCRYPTION_KEY env var
@@ -194,7 +215,7 @@ export function encryptVote(option: string, key: string): EncryptedPayload {
  * verification detects and rejects any payload that has been tampered with.
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
- * compatibility layer) — see the "Runtime support" section of the README.
+ * compatibility layer) â€” see the "Runtime support" section of the README.
  *
  * @param payload - the {@link EncryptedPayload} to decrypt
  * @param key     - 64-char hex string (32 bytes)
