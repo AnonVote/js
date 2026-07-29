@@ -24,6 +24,13 @@ This package is the canonical source of all crypto and token logic used across t
 
 ### Cryptographic utilities (`src/crypto.ts`)
 
+| Export                       | Description                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `hashIdentifier(id)`         | SHA-256 hash of a voter identifier. Trims and lowercases before hashing. Never store originals — only hashes.      |
+| `generateToken()`            | Generates a 32-byte (256-bit) CSPRNG token as a hex string. Used for one-time voter tokens.                        |
+| `hashToken(token)`           | SHA-256 hash of a raw token. Only the hash is ever persisted — the raw value is given to the voter and discarded.  |
+| `encryptVote(optionId, key)` | AES-256-GCM encryption of a vote option ID. Returns an `EncryptedPayload` object with `iv`, `authTag`, and `ciphertext` — all lowercase hex strings (see `DECISIONS.md`). Requires a 32-byte hex key. |
+| `decryptVote(payload, key)`  | Decrypts a vote payload produced by `encryptVote`. Used only by the result tally engine.                           |
 | Export                       | Description                                                                                                        | Edge runtime support |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------- |
 | `hashIdentifier(id)`         | SHA-256 hash of a voter identifier. Trims and lowercases before hashing. Never store originals — only hashes.      | No — Node.js `crypto` only |
@@ -34,7 +41,21 @@ This package is the canonical source of all crypto and token logic used across t
 
 ### Types (`src/types.ts`)
 
-Core shared TypeScript types for votes, tokens, ballots, and audit events — used by both the backend API and any future client SDKs.
+`src/types.ts` is the **canonical type source for the entire AnonVote ecosystem**. All shared TypeScript types — votes, tokens, ballots, audit events, and tally results — are defined here and exported from this package. `AnonVote/core` and any future consumer **should import from `@anonvote/crypto`** rather than maintaining local copies. Defining types locally in `core/shared/` causes silent drift: a field rename in one place does not break the other at compile time and only fails at runtime.
+
+Key types exported:
+
+| Type | Description |
+| ---- | ----------- |
+| `EncryptedPayload` | AES-256-GCM output: `{ ciphertext, iv, authTag }` — all hex strings |
+| `Token` | Token pair: `{ value, hash }` — raw value for voter, hash for storage |
+| `Vote` | Ballot vote event: `{ ballotId, optionId, timestamp }` |
+| `ElectionResult` | Tally output: `Record<optionId, voteCount>` |
+| `BallotEvent` | Stellar audit trail event with `event_type`, `ballot_id`, `stellar_tx_id`, `created_at` |
+| `AnonVoteCryptoError` | Typed error class with `code` field (`INVALID_KEY`, `DECRYPTION_FAILED`, `INVALID_PAYLOAD`) |
+| `Ballot`, `Option`, `BallotStatus` | Core ballot domain types |
+| `VoterToken`, `EligibilityEntry`, `EligibilityList` | Token and eligibility record types |
+| `VoteRecord`, `Result`, `AuditEvent`, `AuditCounts` | Persistence and result types |
 
 ---
 
@@ -55,6 +76,7 @@ import {
   hashToken,
   encryptVote,
   decryptVote,
+  type EncryptedPayload,
 } from "@anonvote/crypto";
 
 // Hash a voter identifier before storing — never store the original
@@ -64,6 +86,12 @@ const identifierHash = hashIdentifier("alice@example.com");
 const rawToken = generateToken();    // give this to the voter
 const storedHash = hashToken(rawToken); // store only this; discard rawToken
 
+// Encrypt a vote option — returns { ciphertext, iv, authTag } all in hex
+const BALLOT_KEY = process.env.BALLOT_ENCRYPTION_KEY!; // 64-char hex
+const payload: EncryptedPayload = encryptVote("option-uuid-here", BALLOT_KEY);
+
+// Decrypt during result tally
+const optionId = decryptVote(payload, BALLOT_KEY);
 // Encrypt a vote option (requires a 64-char hex key)
 const BALLOT_KEY = process.env.BALLOT_ENCRYPTION_KEY!;
 const encrypted = encryptVote("option-uuid-here", BALLOT_KEY);
@@ -268,6 +296,13 @@ The `no-console` rule is enforced as an error. If lint flags a `console.*` in `s
 ```
 js/
 ├── src/
+│   ├── crypto.ts     # Core cryptographic functions
+│   ├── types.ts      # Canonical shared types for the AnonVote ecosystem
+│   ├── client.ts     # AnonVoteClient SDK
+│   └── index.ts      # Public API re-exports
+├── tests/
+│   └── crypto.test.ts
+├── DECISIONS.md      # Architecture decisions (wire format, encoding choices)
 │   ├── client/
 │   │   ├── index.ts  # AnonVoteClient SDK (@anonvote/crypto/client)
 │   │   └── types.ts  # Domain-level SDK types
@@ -286,6 +321,10 @@ js/
 ├── package.json
 └── tsconfig.json
 ```
+
+> **For contributors to AnonVote/core:** import shared types from `@anonvote/crypto` rather than
+> defining local copies in `core/shared/`. `src/types.ts` is the single source of truth — local
+> copies drift silently and only fail at runtime.
 
 ---
 

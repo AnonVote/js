@@ -197,6 +197,9 @@ describe("hashToken", () => {
     const result = hashToken("mytoken");
     expect(result).toHaveLength(64);
     expect(result).toMatch(/^[0-9a-f]{64}$/);
+  it("returns a 64-char hex string", () => {
+    expect(hashToken("mytoken")).toHaveLength(64);
+    expect(hashToken("mytoken")).toMatch(/^[0-9a-f]+$/);
   });
 
   it("is deterministic", () => {
