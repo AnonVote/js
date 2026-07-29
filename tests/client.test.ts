@@ -234,7 +234,12 @@ describe("AnonVoteClient", () => {
       expect(receipt.id.startsWith("receipt-")).toBe(true);
       expect(receipt.ballotId).toBe("elec-123");
       expect(receipt.electionId).toBe("elec-123");
-      expect(receipt.encryptedPayload).toMatch(/^[A-Za-z0-9+/=]+:/);
+      // encryptedPayload is a JSON-serialised EncryptedPayload object
+      expect(() => JSON.parse(receipt.encryptedPayload)).not.toThrow();
+      const parsed = JSON.parse(receipt.encryptedPayload);
+      expect(parsed).toHaveProperty("ciphertext");
+      expect(parsed).toHaveProperty("iv");
+      expect(parsed).toHaveProperty("authTag");
       expect(receipt.castAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(receipt.verified).toBe(false);
     });
@@ -246,9 +251,11 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
-      // The payload should have three parts: iv:authTag:ciphertext
-      const parts = receipt.encryptedPayload.split(":");
-      expect(parts).toHaveLength(3);
+      // encryptedPayload is a JSON-serialised EncryptedPayload — parse and check all three hex fields
+      const parsed = JSON.parse(receipt.encryptedPayload);
+      expect(parsed.ciphertext).toMatch(/^[0-9a-f]+$/);
+      expect(parsed.iv).toMatch(/^[0-9a-f]+$/);
+      expect(parsed.authTag).toMatch(/^[0-9a-f]+$/);
     });
 
     it("produces different encrypted payloads for the same vote (random IV)", () => {

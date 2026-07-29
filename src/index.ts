@@ -17,7 +17,17 @@ export {
 // Client SDK
 export { AnonVoteClient } from "./client";
 
-// Core types
+// Crypto-primitive types (canonical, required by the issue)
+export type {
+  EncryptedPayload,
+  Token,
+  Vote,
+  ElectionResult,
+  BallotEvent,
+} from "./types";
+export { AnonVoteCryptoError } from "./types";
+
+// Core / ecosystem types
 export type {
   BallotStatus,
   Option,
@@ -25,7 +35,7 @@ export type {
   EligibilityList,
   EligibilityEntry,
   VoterToken,
-  Vote,
+  VoteRecord,
   Organization,
   Result,
   AuditEventType,
