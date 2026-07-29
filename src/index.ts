@@ -10,8 +10,10 @@ export {
   hashIdentifier,
   generateToken,
   hashToken,
+  generateBallotKey,
   encryptVote,
   decryptVote,
+  verifyVoteHash,
 } from "./crypto";
 
 // Client SDK
