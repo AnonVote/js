@@ -6,6 +6,85 @@
  * any future consumer of the AnonVote protocol.
  */
 
+// ── Crypto primitives ─────────────────────────────────────────────────────────
+
+/**
+ * The output of {@link encryptVote}.
+ * All three fields are lowercase hex strings.
+ * See DECISIONS.md ADR-001 for the rationale for hex over base64.
+ */
+export interface EncryptedPayload {
+  /** Hex-encoded AES-256-GCM encrypted option ID. */
+  ciphertext: string;
+  /** Hex-encoded 12-byte GCM initialisation vector. */
+  iv: string;
+  /** Hex-encoded 16-byte GCM authentication tag. */
+  authTag: string;
+}
+
+/**
+ * A one-time anonymous voter token pair.
+ * `value` is given to the voter and never persisted server-side.
+ * `hash` is the SHA-256 hex hash of `value` — store only this.
+ */
+export interface Token {
+  /** Raw token — give to voter, never store. */
+  value: string;
+  /** SHA-256 hash of value — store this. */
+  hash: string;
+}
+
+/**
+ * A ballot vote event.
+ */
+export interface Vote {
+  ballotId: string;
+  optionId: string;
+  /** Unix timestamp in milliseconds. */
+  timestamp: number;
+}
+
+/**
+ * Tally result for a single ballot.
+ * Maps each option ID to its vote count.
+ */
+export interface ElectionResult {
+  [optionId: string]: number;
+}
+
+/**
+ * An event emitted to the Stellar audit trail.
+ */
+export interface BallotEvent {
+  event_type: "ballot_created" | "token_issued" | "vote_cast" | "result_published";
+  ballot_id: string;
+  stellar_tx_id: string | null;
+  /** ISO 8601 timestamp. */
+  created_at: string;
+}
+
+/**
+ * Typed error thrown by cryptographic operations in this package.
+ *
+ * @example
+ * try {
+ *   decryptVote(payload, key);
+ * } catch (err) {
+ *   if (err instanceof AnonVoteCryptoError && err.code === 'DECRYPTION_FAILED') {
+ *     // handle tampered payload
+ *   }
+ * }
+ */
+export class AnonVoteCryptoError extends Error {
+  code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "AnonVoteCryptoError";
+    this.code = code;
+  }
+}
+
 // ── Ballot ────────────────────────────────────────────────────────────────────
 
 export type BallotStatus = "OPEN" | "CLOSED";
@@ -86,6 +165,7 @@ export interface VoterToken {
 // ── Vote ──────────────────────────────────────────────────────────────────────
 
 /**
+ * A submitted vote record stored in the database.
  * An encrypted vote payload.
  *
  * AES-256-GCM produces three outputs:
@@ -109,6 +189,8 @@ export interface EncryptedVote {
  * See {@link encryptVote} and {@link decryptVote}.
  * A raw vote, prior to encryption.
  */
+export interface VoteRecord {
+  id: string;
 export interface Vote {
   ballotId: string;
   option: string;

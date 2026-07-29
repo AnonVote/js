@@ -247,8 +247,11 @@ export class AnonVoteClient {
       throw new ValidationError("encryptionKey is required either in params or client config");
     }
 
-    // Encrypt the vote
-    const encryptedPayload = encryptVote(params.voteOption.trim(), encryptionKey);
+    // Encrypt the vote — serialise the EncryptedPayload object to a JSON string
+    // so it fits the VoteReceipt.encryptedPayload string field.
+    const encryptedPayload = JSON.stringify(
+      encryptVote(params.voteOption.trim(), encryptionKey),
+    );
 
     const id = this.generateId("receipt");
     const castAt = new Date().toISOString();
@@ -299,6 +302,9 @@ export class AnonVoteClient {
     }
 
     try {
+      // encryptedPayload is stored as a JSON-serialised EncryptedPayload object
+      const parsed = JSON.parse(encryptedPayload.trim());
+      const decrypted = decryptVote(parsed, key);
       const decrypted = decryptVote(encryptedPayload, key);
       // If decryption succeeded, the payload is valid
       return typeof decrypted === "string" && decrypted.length > 0;

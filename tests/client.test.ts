@@ -240,6 +240,12 @@ describe("AnonVoteClient", () => {
       expect(receipt.id.startsWith("receipt-")).toBe(true);
       expect(receipt.ballotId).toBe("elec-123");
       expect(receipt.electionId).toBe("elec-123");
+      // encryptedPayload is a JSON-serialised EncryptedPayload object
+      expect(() => JSON.parse(receipt.encryptedPayload)).not.toThrow();
+      const parsed = JSON.parse(receipt.encryptedPayload);
+      expect(parsed).toHaveProperty("ciphertext");
+      expect(parsed).toHaveProperty("iv");
+      expect(parsed).toHaveProperty("authTag");
       expect(receipt.encryptedPayload).toEqual(ENCRYPTED_PAYLOAD_SHAPE);
       expect(receipt.castAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(receipt.verified).toBe(false);
@@ -252,6 +258,11 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
+      // encryptedPayload is a JSON-serialised EncryptedPayload — parse and check all three hex fields
+      const parsed = JSON.parse(receipt.encryptedPayload);
+      expect(parsed.ciphertext).toMatch(/^[0-9a-f]+$/);
+      expect(parsed.iv).toMatch(/^[0-9a-f]+$/);
+      expect(parsed.authTag).toMatch(/^[0-9a-f]+$/);
       // The payload should have ciphertext, iv, and authTag as hex strings
       expect(receipt.encryptedPayload).toEqual(ENCRYPTED_PAYLOAD_SHAPE);
     });

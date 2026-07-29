@@ -23,6 +23,17 @@ export type { RetryConfig } from "./types";
 // Client SDK (low-level retry-aware client)
 export { AnonVoteClient } from "./client";
 
+// Crypto-primitive types (canonical, required by the issue)
+export type {
+  EncryptedPayload,
+  Token,
+  Vote,
+  ElectionResult,
+  BallotEvent,
+} from "./types";
+export { AnonVoteCryptoError } from "./types";
+
+// Core / ecosystem types
 // AnonVoteClient HTTP SDK
 export { AnonVoteClient as AnonVoteHttpClient } from "./client/AnonVoteClient";
 export type { AnonVoteClientConfig, UploadResult, TokenBatch, VoteResult, BallotResults, OptionResult, VerificationReport } from "./client/AnonVoteClient";
@@ -40,6 +51,7 @@ export type {
   EligibilityEntry,
   Token,
   VoterToken,
+  VoteRecord,
   Vote,
   EncryptedPayload,
   Organization,
