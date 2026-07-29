@@ -86,6 +86,27 @@ export interface VoterToken {
 // ── Vote ──────────────────────────────────────────────────────────────────────
 
 /**
+ * An encrypted vote payload.
+ *
+ * AES-256-GCM produces three outputs:
+ * - `iv` — a random 96-bit initialization vector (base64-encoded)
+ * - `ciphertext` — the encrypted vote option (base64-encoded)
+ * - `authTag` — a 128-bit GCM authentication tag (base64-encoded)
+ *
+ * The auth tag is verified on decryption, making any tampering detectable.
+ * The IV ensures that encrypting the same plaintext with the same key
+ * produces different ciphertext each time (non-deterministic encryption).
+ */
+export interface EncryptedVote {
+  iv: string;
+  ciphertext: string;
+  authTag: string;
+}
+
+/**
+ * A submitted vote.
+ * `encryptedPayload` is the AES-256-GCM encrypted option ID.
+ * See {@link encryptVote} and {@link decryptVote}.
  * A raw vote, prior to encryption.
  */
 export interface Vote {
@@ -288,4 +309,3 @@ export interface VoteReceipt {
   /** Whether the vote has been verified. */
   verified: boolean;
 }
-

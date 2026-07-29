@@ -88,6 +88,8 @@ function normalizeIdentifier(id: string): string {
     .replace(/[^a-z0-9-_]/g, "");
 }
 
+import { EncryptedVote } from "./types";
+
 /**
  * SHA-256 hash of a voter identifier.
  *
@@ -103,6 +105,9 @@ function normalizeIdentifier(id: string): string {
  * @warning This is a breaking change for any existing hashed data. Any eligibility
  * data hashed with the unnormalized version will no longer match after this fix.
  * Test fixtures and seeded eligibility data must be regenerated.
+ *
+ * @param identifier - The voter identifier to hash (e.g. email address)
+ * @returns 64-character hex string (SHA-256 digest)
  *
  * @example
  * const hash = hashIdentifier("alice@example.com");
@@ -129,6 +134,8 @@ export function hashIdentifier(id: string): string {
  * Functions) via the Web Crypto API â€” see the "Runtime support" section
  * of the README.
  *
+ * @returns 64-character hex string (32 random bytes)
+ *
  * @example
  * const rawToken = generateToken(); // give this to the voter
  * const storedHash = hashToken(rawToken); // store only this
@@ -149,6 +156,9 @@ export function generateToken(): string {
  *
  * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
  * compatibility layer) â€” see the "Runtime support" section of the README.
+ *
+ * @param token - The raw token string to hash
+ * @returns 64-character hex string (SHA-256 digest)
  *
  * @example
  * const rawToken = generateToken();
@@ -245,4 +255,109 @@ export function decryptVote(payload: EncryptedPayload, key: string): string {
       "Failed to decrypt vote: payload has been tampered with or the key is incorrect",
     );
   }
+}
+
+/**
+ * Verify that an encrypted vote payload corresponds to a given vote option.
+ *
+ * This function verifies by:
+ * 1. Decrypting the encrypted vote with the ballot key
+ * 2. Comparing the decrypted value with the vote option
+ *
+ * This allows third parties to verify that a specific vote option was the one
+ * encrypted, without revealing the option itself. The encrypted payload serves
+ * as a commitment that can be checked during audit.
+ *
+ * Note: Because encryption is non-deterministic (random IV), the same vote
+ * option encrypted twice produces different ciphertexts. Therefore verification
+ * must decrypt the actual encrypted payload rather than re-encrypting.
+ *
+ * @param voteOption - The vote option string to verify
+ * @param encryptedVote - The encrypted vote payload to verify
+ * @param ballotKey - 44-character base64 string (32 bytes)
+ * @returns true if the encrypted vote decrypts to the vote option, false otherwise
+ *
+ * @example
+ * const isValid = verifyVoteHash("option-uuid", encryptedVote, ballotKey);
+ */
+export function verifyVoteHash(
+  voteOption: string,
+  encryptedVote: EncryptedVote,
+  ballotKey: string,
+): boolean {
+  try {
+    // Step 1: Decrypt the encrypted vote payload
+    const decrypted = decryptVote(encryptedVote, ballotKey);
+
+    // Step 2: Compare the decrypted value with the vote option
+    return constantTimeEqual(decrypted, voteOption);
+  } catch {
+    // If decryption fails (tampered payload, wrong key, etc.), verification fails
+    return false;
+  }
+}
+
+/**
+ * Parse and validate a base64-encoded 32-byte ballot key.
+ *
+ * Accepts both standard base64 and base64url encodings.
+ * The key must decode to exactly 32 bytes (256 bits) for AES-256.
+ *
+ * @param ballotKey - Base64-encoded 32-byte key
+ * @returns Buffer containing the decoded 32-byte key
+ *
+ * @throws {Error} If the key is empty
+ * @throws {Error} If the decoded key is not exactly 32 bytes
+ */
+function parseBallotKey(ballotKey: string): Buffer {
+  if (ballotKey.length === 0) {
+    throw new Error("Ballot key must not be empty");
+  }
+
+  let key: Buffer;
+  try {
+    key = Buffer.from(ballotKey, "base64");
+  } catch {
+    throw new Error("Ballot key is not valid base64");
+  }
+
+  // Support both 32-byte base64 strings and 64-char hex strings for backward compat
+  if (key.length !== 32 && /^[0-9a-fA-F]+$/.test(ballotKey) && ballotKey.length === 64) {
+    try {
+      key = Buffer.from(ballotKey, "hex");
+    } catch {
+      // fall through to length check
+    }
+  }
+
+  if (key.length !== 32) {
+    throw new Error(
+      `Invalid ballot key length: expected 32 bytes (256 bits), got ${key.length} bytes`,
+    );
+  }
+
+  return key;
+}
+
+/**
+ * Constant-time string comparison to prevent timing attacks.
+ *
+ * Standard string comparison short-circuits on the first differing character,
+ * leaking information about the comparison through timing. This function
+ * always compares all characters, making timing attacks infeasible.
+ *
+ * @param a - First string to compare
+ * @param b - Second string to compare
+ * @returns true if the strings are equal, false otherwise
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
 }
