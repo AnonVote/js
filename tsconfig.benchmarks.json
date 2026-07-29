@@ -1,19 +1,15 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2020"],
     "types": ["node"],
-    "outDir": "./dist",
-    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "resolveJsonModule": true
+    "noEmit": true
   },
-  "include": ["src", "src/client"],
+  "include": ["src/**/*.ts", "benchmarks/**/*.ts"],
   "exclude": ["node_modules", "dist", "tests"]
 }
