@@ -56,6 +56,16 @@ export interface EligibilityEntry {
 // ── Token ─────────────────────────────────────────────────────────────────────
 
 /**
+ * A raw token paired with its hash.
+ * `value` is the raw token from {@link generateToken} — never persisted.
+ * `hash` is the result of {@link hashToken} — safe to store.
+ */
+export interface Token {
+  value: string;
+  hash: string;
+}
+
+/**
  * A one-time voter token record.
  * `tokenHash` is the SHA-256 hash of the raw token — the raw value is never
  * stored. See {@link generateToken} and {@link hashToken}.
@@ -97,16 +107,22 @@ export interface EncryptedVote {
  * A submitted vote.
  * `encryptedPayload` is the AES-256-GCM encrypted option ID.
  * See {@link encryptVote} and {@link decryptVote}.
+ * A raw vote, prior to encryption.
  */
 export interface Vote {
-  id: string;
   ballotId: string;
-  optionId: string;
-  encryptedPayload: string;
-  weight: number;
-  rank?: number;
-  stellarTxId?: string;
-  submittedAt: string;
+  option: string;
+  timestamp: number;
+}
+
+/**
+ * An AES-256-GCM encrypted payload, produced by {@link encryptVote} and
+ * consumed by {@link decryptVote}. All fields are hex-encoded strings.
+ */
+export interface EncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  authTag: string;
 }
 
 // ── Organization ──────────────────────────────────────────────────────────────
@@ -172,11 +188,50 @@ export interface LoginResponse {
 // ── Client SDK Types ──────────────────────────────────────────────────────────
 
 /**
+ * Configuration for automatic retry with exponential backoff.
+ *
+ * Retries are only attempted for transient failures (network errors or
+ * specific HTTP status codes). Permanent failures (e.g. 4xx except 429)
+ * are not retried.
+ */
+export interface RetryConfig {
+  /**
+   * Maximum number of retry attempts before giving up.
+   * @default 3
+   */
+  maxRetries: number;
+  /**
+   * Initial delay in milliseconds before the first retry.
+   * @default 100
+   */
+  initialDelayMs: number;
+  /**
+   * Maximum delay in milliseconds between retries. The exponential
+   * backoff is capped at this value.
+   * @default 5000
+   */
+  maxDelayMs: number;
+  /**
+   * Multiplier applied to the delay on each successive retry.
+   * Delay formula: min(initialDelayMs * backoffMultiplier^attempt, maxDelayMs)
+   * @default 2
+   */
+  backoffMultiplier: number;
+  /**
+   * HTTP status codes that should trigger a retry.
+   * @default [408, 429, 500, 502, 503, 504]
+   */
+  retryableStatusCodes: number[];
+}
+
+/**
  * Configuration options for the AnonVoteClient.
  */
 export interface ClientConfig {
   /** The encryption key used for vote encryption (64-char hex string). */
   encryptionKey?: string;
+  /** Optional retry configuration. Defaults are applied for any omitted fields. */
+  retryConfig?: Partial<RetryConfig>;
 }
 
 /**
@@ -248,7 +303,7 @@ export interface VoteReceipt {
   /** The ballot ID associated with this vote. */
   ballotId: string;
   /** The encrypted vote payload. */
-  encryptedPayload: string;
+  encryptedPayload: EncryptedPayload;
   /** When the vote was cast (ISO 8601). */
   castAt: string;
   /** Whether the vote has been verified. */

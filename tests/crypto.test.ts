@@ -1,4 +1,4 @@
-import {
+﻿import {
   hashIdentifier,
   generateToken,
   hashToken,
@@ -29,6 +29,53 @@ describe("hashIdentifier", () => {
     );
   });
 
+  it("normalizes case: alice@example.com === Alice@example.com", () => {
+    expect(hashIdentifier("alice@example.com")).toBe(
+      hashIdentifier("Alice@example.com"),
+    );
+  });
+
+  it("normalizes whitespace: alice@example.com === ' alice@example.com '", () => {
+    expect(hashIdentifier("alice@example.com")).toBe(
+      hashIdentifier(" alice@example.com "),
+    );
+  });
+
+  it("normalizes uppercase: ALICE@EXAMPLE.COM === alice@example.com", () => {
+    expect(hashIdentifier("ALICE@EXAMPLE.COM")).toBe(
+      hashIdentifier("alice@example.com"),
+    );
+  });
+
+  it("normalizes different Unicode representations to the same hash", () => {
+    const nfc = "jos\u00E9@example.com";
+    const nfd = "jose\u0301@example.com";
+    expect(hashIdentifier(nfc)).toBe(hashIdentifier(nfd));
+  });
+
+  it("strips stray punctuation/symbols not in [a-z0-9-_]", () => {
+    expect(hashIdentifier("alice!example#com")).toBe(
+      hashIdentifier("aliceexamplecom"),
+    );
+  });
+
+  it("keeps hyphens and underscores intact", () => {
+    expect(hashIdentifier("alice-bob_123")).toBe(
+      hashIdentifier("ALICE-BOB_123"),
+    );
+  });
+
+  it("returns consistent hash for empty string", () => {
+    const emptyHash = hashIdentifier("");
+    expect(emptyHash).toHaveLength(64);
+    expect(emptyHash).toMatch(/^[0-9a-f]+$/);
+    expect(hashIdentifier("")).toBe(emptyHash);
+  });
+
+  it("whitespace-only string hashes same as empty string", () => {
+    expect(hashIdentifier(" ")).toBe(hashIdentifier(""));
+  });
+
   it("produces different hashes for different inputs", () => {
     expect(hashIdentifier("alice@example.com")).not.toBe(
       hashIdentifier("bob@example.com"),
@@ -53,19 +100,77 @@ describe("generateToken", () => {
   it("returns a different token each call", () => {
     expect(generateToken()).not.toBe(generateToken());
   });
+
+  it("produces 1000 unique values across consecutive calls", () => {
+    const tokens = new Set<string>();
+    for (let i = 0; i < 1000; i++) {
+      tokens.add(generateToken());
+    }
+    expect(tokens.size).toBe(1000);
+  });
+
+  describe("edge runtime compatibility", () => {
+    const originalCrypto = globalThis.crypto;
+
+    afterEach(() => {
+      // Restore whatever was there before each test (real crypto in Node's
+      // test environment) so other tests aren't affected.
+      Object.defineProperty(globalThis, "crypto", {
+        value: originalCrypto,
+        configurable: true,
+      });
+    });
+
+    it("uses globalThis.crypto.getRandomValues when it's available", () => {
+      const getRandomValues = jest.fn((arr: Uint8Array) => {
+        // Fill deterministically so we can assert on the output.
+        arr.fill(0xab);
+        return arr;
+      });
+
+      Object.defineProperty(globalThis, "crypto", {
+        value: { getRandomValues },
+        configurable: true,
+      });
+
+      const token = generateToken();
+
+      expect(getRandomValues).toHaveBeenCalledTimes(1);
+      expect(getRandomValues.mock.calls[0][0]).toBeInstanceOf(Uint8Array);
+      expect(getRandomValues.mock.calls[0][0]).toHaveLength(32);
+      expect(token).toBe("ab".repeat(32));
+    });
+
+    it("falls back to Node's crypto.randomBytes when getRandomValues is unavailable", () => {
+      Object.defineProperty(globalThis, "crypto", {
+        value: undefined,
+        configurable: true,
+      });
+
+      const token = generateToken();
+
+      expect(token).toHaveLength(64);
+      expect(token).toMatch(/^[0-9a-f]+$/);
+    });
+  });
 });
 
 describe("hashToken", () => {
   it("returns a 64-char hex string", () => {
     expect(hashToken("mytoken")).toHaveLength(64);
+    expect(hashToken("mytoken")).toMatch(/^[0-9a-f]+$/);
   });
 
   it("is deterministic", () => {
     expect(hashToken("mytoken")).toBe(hashToken("mytoken"));
   });
 
+  it("produces different hashes for different tokens", () => {
+    expect(hashToken("token-a")).not.toBe(hashToken("token-b"));
+  });
+
   it("differs from hashIdentifier for the same input", () => {
-    // hashToken does not trim/lowercase — they should differ
+    // hashToken does not trim/lowercase â€” they should differ
     expect(hashToken("ALICE")).not.toBe(hashIdentifier("ALICE"));
   });
 });
@@ -89,9 +194,9 @@ describe("generateBallotKey", () => {
 
 describe("encryptVote / decryptVote", () => {
   it("round-trips correctly", () => {
-    const optionId = "option-uuid-1234";
-    const encrypted = encryptVote(optionId, TEST_KEY);
-    expect(decryptVote(encrypted, TEST_KEY)).toBe(optionId);
+    const option = "Yes";
+    const encrypted = encryptVote(option, TEST_KEY);
+    expect(decryptVote(encrypted, TEST_KEY)).toBe(option);
   });
 
   it("produces different ciphertexts for the same input (random IV)", () => {

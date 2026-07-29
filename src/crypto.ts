@@ -1,10 +1,92 @@
-// @ts-nocheck
-import {
-  createHash,
-  randomBytes,
-  createCipheriv,
-  createDecipheriv,
-} from "crypto";
+﻿import type { EncryptedPayload } from "./types";
+import { CryptoError, ValidationError } from "./errors";
+
+/**
+ * Minimal shape of the Web Crypto API's `crypto` global that this module
+ * relies on. Declared locally instead of pulling in `lib.dom` so the
+ * package's TypeScript config doesn't have to assume a browser-like `lib`.
+ */
+interface MinimalWebCrypto {
+  getRandomValues<T extends ArrayBufferView>(array: T): T;
+}
+
+/**
+ * Returns the Web Crypto API's `crypto` global when it exposes
+ * `getRandomValues`. This is present in browsers, Deno, Cloudflare Workers,
+ * Vercel Edge Functions, and Node.js 19+ (as `globalThis.crypto`).
+ *
+ * Returns `undefined` in older Node.js runtimes that don't expose a global
+ * `crypto`, in which case callers should fall back to {@link getNodeCrypto}.
+ */
+function getWebCrypto(): MinimalWebCrypto | undefined {
+  const g = globalThis as { crypto?: MinimalWebCrypto };
+  if (g.crypto && typeof g.crypto.getRandomValues === "function") {
+    return g.crypto;
+  }
+  return undefined;
+}
+
+/**
+ * Lazily loads Node's built-in `crypto` module.
+ *
+ * This must only ever be called from inside a function body, never at
+ * module load time. Bundlers targeting edge runtimes (Cloudflare Workers,
+ * Vercel Edge) resolve top-level imports eagerly, so a top-level
+ * `import "crypto"` â€” or even a top-level `try { require("crypto") }` â€”
+ * causes them to bundle Node's crypto module into edge output even when
+ * it's never called. A `require()` inside a function body is only
+ * evaluated if that function actually runs, which keeps edge bundles free
+ * of Node's `crypto` module for the paths that don't need it.
+ */
+function getNodeCrypto(): typeof import("crypto") {
+  return require("crypto");
+}
+
+/**
+ * Cross-runtime cryptographically secure random bytes.
+ *
+ * Prefers the Web Crypto API (`globalThis.crypto.getRandomValues`), which
+ * works in Node.js, browsers, Deno, Cloudflare Workers, and Vercel Edge
+ * Functions without any bundler configuration. Falls back to Node's
+ * `crypto.randomBytes` only when no global Web Crypto is available.
+ */
+function getRandomBytes(size: number): Uint8Array {
+  const webCrypto = getWebCrypto();
+  if (webCrypto) {
+    return webCrypto.getRandomValues(new Uint8Array(size));
+  }
+  return new Uint8Array(getNodeCrypto().randomBytes(size));
+}
+
+/** Hex-encodes bytes without relying on Node's `Buffer`, which isn't
+ * guaranteed to exist in edge runtimes. */
+function bytesToHex(bytes: Uint8Array): string {
+  let hex = "";
+  for (const byte of bytes) {
+    hex += byte.toString(16).padStart(2, "0");
+  }
+  return hex;
+}
+
+/**
+ * Normalizes a voter identifier so that equivalent identifiers â€” differing
+ * only in whitespace, case, Unicode representation, or incidental
+ * punctuation â€” collapse to the same string before hashing.
+ *
+ * Steps applied, in order:
+ *  1. Trim leading/trailing whitespace.
+ *  2. Lowercase.
+ *  3. Unicode-normalize to NFC (so combining-mark and precomposed forms
+ *     of the same character match).
+ *  4. Strip any character that isn't alphanumeric, `-`, or `_`.
+ */
+function normalizeIdentifier(id: string): string {
+  return id
+    .trim()
+    .toLowerCase()
+    .normalize("NFC")
+    .replace(/[^a-z0-9-_]/g, "");
+}
 
 import { EncryptedVote } from "./types";
 
@@ -12,134 +94,127 @@ import { EncryptedVote } from "./types";
  * SHA-256 hash of a voter identifier.
  *
  * Used to store eligibility entries without retaining the original identifier.
- * Input is trimmed and lowercased before hashing for consistency.
+ * Input is normalized (see {@link normalizeIdentifier}) before hashing â€”
+ * always normalize before hashing to avoid duplicate entries for the same
+ * voter.
+ *
+ * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
+ * compatibility layer, e.g. Cloudflare Workers' `nodejs_compat` flag) â€”
+ * see the "Runtime support" section of the README.
+ *
+ * @warning This is a breaking change for any existing hashed data. Any eligibility
+ * data hashed with the unnormalized version will no longer match after this fix.
+ * Test fixtures and seeded eligibility data must be regenerated.
  *
  * @param identifier - The voter identifier to hash (e.g. email address)
  * @returns 64-character hex string (SHA-256 digest)
  *
  * @example
  * const hash = hashIdentifier("alice@example.com");
+ * // hash === "3d0a9f2e..." (deterministic for the same input)
  */
-export function hashIdentifier(identifier: string): string {
-  if (identifier.length === 0) {
-    // SHA-256 of empty string is well-defined: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-    return createHash("sha256").update("").digest("hex");
-  }
-  return createHash("sha256")
-    .update(identifier.trim().toLowerCase())
+export function hashIdentifier(id: string): string {
+  return getNodeCrypto()
+    .createHash("sha256")
+    .update(normalizeIdentifier(id))
     .digest("hex");
 }
 
 /**
  * Generate a cryptographically secure random voter token.
  *
- * 32 bytes = 256 bits of entropy, hex encoded.
- * The raw value is given to the voter — never persisted server-side.
- * Use {@link hashToken} to store the server-side reference.
+ * Produces 32 bytes (256 bits) of entropy via Node.js `crypto.randomBytes`,
+ * encoded as a 64-character hex string. The raw value is given to the voter â€”
+ * never persisted server-side. Use {@link hashToken} to store the server-side
+ * reference.
+ *
+ * @returns A 64-character hex string representing a 256-bit random token.
+ *
+ * Works in Node.js and in edge runtimes (Cloudflare Workers, Vercel Edge
+ * Functions) via the Web Crypto API â€” see the "Runtime support" section
+ * of the README.
  *
  * @returns 64-character hex string (32 random bytes)
  *
  * @example
- * const rawToken = generateToken(); // give to voter
- * const storedHash = hashToken(rawToken); // store this
+ * const rawToken = generateToken(); // give this to the voter
+ * const storedHash = hashToken(rawToken); // store only this
  */
 export function generateToken(): string {
-  return randomBytes(32).toString("hex");
+  return bytesToHex(getRandomBytes(32));
 }
 
 /**
  * SHA-256 hash of a raw voter token.
  *
- * Only the hash is stored in the database — the raw token is never persisted.
- * This enforces structural unlinkability between token issuance and vote submission.
+ * Only the hash is stored in the database â€” the raw token is never persisted.
+ * This enforces structural unlinkability between token issuance and vote
+ * submission. The raw token should be discarded after hashing.
+ *
+ * @param token - The raw hex token string produced by {@link generateToken}.
+ * @returns A 64-character lowercase hex string (SHA-256 digest of the token).
+ *
+ * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
+ * compatibility layer) â€” see the "Runtime support" section of the README.
  *
  * @param token - The raw token string to hash
  * @returns 64-character hex string (SHA-256 digest)
  *
  * @example
- * const hash = hashToken(rawToken);
+ * const rawToken = generateToken();
+ * const storedHash = hashToken(rawToken);
+ * // Store storedHash in the database; discard rawToken after giving it to the voter.
  */
 export function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+  return getNodeCrypto().createHash("sha256").update(token).digest("hex");
 }
 
 /**
- * Generate a cryptographically secure random ballot encryption key.
+ * Encrypt a vote option using AES-256-GCM.
  *
- * Produces a 32-byte (256-bit) key encoded as a base64 string.
- * This key is used with AES-256-GCM for vote encryption/decryption.
- * The key should be stored securely and never exposed to unauthorized parties.
+ * The encrypted payload stores only the selected option â€” no voter identity,
+ * no token value. Authenticated encryption (GCM mode) ensures any tampering
+ * is detectable at decryption time.
  *
- * AES-256-GCM was chosen because:
- * - 256-bit key provides strong security margin against brute-force attacks
- * - GCM mode provides authenticated encryption (confidentiality + integrity)
- * - The authentication tag detects any tampering with the ciphertext
- * - GCM is widely supported in hardware-accelerated crypto instructions
+ * The IV is generated via the cross-runtime {@link getRandomBytes} helper,
+ * but the AES-256-GCM cipher itself uses Node's `crypto.createCipheriv`.
+ * Node's cipher API is synchronous, while the Web Crypto equivalent
+ * (`SubtleCrypto.encrypt`) is Promise-based â€” swapping to it would change
+ * this function's signature from sync to async, a breaking change that's
+ * out of scope here. So `encryptVote`/`decryptVote` still require Node.js's
+ * `crypto` module (or an edge runtime with a Node.js compatibility layer)
+ * â€” see the "Runtime support" section of the README.
  *
- * @returns 44-character base64 string (32 random bytes encoded)
- *
- * @example
- * const key = generateBallotKey();
- * // store key securely, e.g. in environment variable
- */
-export function generateBallotKey(): string {
-  return randomBytes(32).toString("base64");
-}
-
-/**
- * Encrypt a vote option using AES-256-GCM authenticated encryption.
- *
- * AES-256-GCM is an authenticated encryption algorithm that provides:
- * - **Confidentiality**: The vote option is encrypted and cannot be read without the key
- * - **Integrity**: The authentication tag ensures the ciphertext hasn't been tampered with
- * - **Non-determinism**: A random IV ensures the same plaintext + key produces different
- *   ciphertext each time, preventing vote linkage through ciphertext comparison
- *
- * The IV (initialization vector) is 96 bits (12 bytes) as recommended for GCM.
- * It is randomly generated for each encryption operation and stored alongside
- * the ciphertext. The IV does not need to be secret, but must be unique per
- * encryption with the same key.
- *
- * @param voteOption - The vote option string to encrypt
- * @param ballotKey - 44-character base64 string (32 bytes), from generateBallotKey()
- * @returns EncryptedVote object containing base64-encoded iv, ciphertext, and authTag
- *
- * @throws {Error} If ballotKey is not a valid 32-byte base64 string
- * @throws {Error} If voteOption is empty
+ * @param option - The raw vote option string to encrypt
+ * @param key    - 64-char hex string (32 bytes), from BALLOT_ENCRYPTION_KEY env var
+ * @returns an {@link EncryptedPayload} with ciphertext, iv, and authTag as hex strings
  *
  * @example
- * const encrypted = encryptVote("option-uuid", process.env.BALLOT_ENCRYPTION_KEY!);
- * // encrypted.iv, encrypted.ciphertext, encrypted.authTag
+ * const encrypted = encryptVote("Yes", process.env.BALLOT_ENCRYPTION_KEY!);
+ * // encrypted === { ciphertext: "...", iv: "...", authTag: "..." }
  */
-export function encryptVote(
-  voteOption: string,
-  ballotKey: string,
-): EncryptedVote {
-  if (voteOption.length === 0) {
-    throw new Error("Vote option must not be empty");
+export function encryptVote(option: string, key: string): EncryptedPayload {
+  if (key.length !== 64) {
+    throw new ValidationError(
+      "encryption key must be a 64-character hex string (32 bytes)",
+    );
   }
 
-  const key = parseBallotKey(ballotKey);
+  const { createCipheriv } = getNodeCrypto();
+  const keyBuffer = Buffer.from(key, "hex");
+  const iv = Buffer.from(getRandomBytes(12)); // 96-bit IV for GCM
+  const cipher = createCipheriv("aes-256-gcm", keyBuffer, iv);
 
-  // 96-bit random IV for GCM. GCM's security depends on unique IVs —
-  // reusing an IV with the same key compromises confidentiality.
-  const iv = randomBytes(12);
-  // @ts-ignore - Node.js crypto typings do not align Buffer with CipherKey/BinaryLike
-  const cipher = createCipheriv("aes-256-gcm", Buffer.from(key), iv);
-
-  const updated = cipher.update(voteOption, "utf8") as any;
-  const finalized = cipher.final() as any;
-  // @ts-ignore - Buffer.concat type issues with Node.js crypto return types
-  const encrypted = Buffer.concat([updated, finalized]);
-
-  // The auth tag is 128 bits (16 bytes) by default in GCM.
-  // It authenticates both the ciphertext and any associated data (none here).
+  const encrypted = Buffer.concat([
+    cipher.update(option, "utf8"),
+    cipher.final(),
+  ]);
   const authTag = cipher.getAuthTag();
 
   return {
-    iv: iv.toString("base64"),
-    ciphertext: encrypted.toString("base64"),
-    authTag: authTag.toString("base64"),
+    ciphertext: encrypted.toString("hex"),
+    iv: iv.toString("hex"),
+    authTag: authTag.toString("hex"),
   };
 }
 
@@ -147,74 +222,37 @@ export function encryptVote(
  * Decrypt a vote payload encrypted with {@link encryptVote}.
  *
  * Should only be called by the result tally engine. GCM authentication tag
- * verification detects and rejects any payload tampering.
+ * verification detects and rejects any payload that has been tampered with.
  *
- * The decryption process:
- * 1. Decode the IV, auth tag, and ciphertext from base64
- * 2. Create a GCM decipher with the same key and IV
- * 3. Set the expected auth tag — if the ciphertext was tampered with,
- *    the tag won't match and an error is thrown
- * 4. Decrypt and return the original vote option
+ * Requires Node.js's `crypto` module (or an edge runtime with a Node.js
+ * compatibility layer) â€” see the "Runtime support" section of the README.
  *
- * @param encryptedVote - EncryptedVote object with iv, ciphertext, and authTag
- * @param ballotKey - 44-character base64 string (32 bytes)
- * @returns The original vote option string
- *
- * @throws {Error} If ballotKey is not a valid 32-byte base64 string
- * @throws {Error} If the auth tag is invalid (tampered ciphertext)
- * @throws {Error} If the encrypted payload is corrupted or truncated
+ * @param payload - the {@link EncryptedPayload} to decrypt
+ * @param key     - 64-char hex string (32 bytes)
+ * @returns the original option string
  *
  * @example
- * const optionId = decryptVote(encryptedPayload, process.env.BALLOT_ENCRYPTION_KEY!);
+ * const option = decryptVote(encryptedPayload, process.env.BALLOT_ENCRYPTION_KEY!);
+ * // option === "Yes"
  */
-export function decryptVote(
-  encryptedVote: EncryptedVote,
-  ballotKey: string,
-): string {
-  const key = parseBallotKey(ballotKey);
+export function decryptVote(payload: EncryptedPayload, key: string): string {
+  const { createDecipheriv } = getNodeCrypto();
+  const keyBuffer = Buffer.from(key, "hex");
+  const iv = Buffer.from(payload.iv, "hex");
+  const authTag = Buffer.from(payload.authTag, "hex");
+  const ciphertext = Buffer.from(payload.ciphertext, "hex");
 
-  if (!encryptedVote.iv || !encryptedVote.authTag || !encryptedVote.ciphertext) {
-    throw new Error(
-      "Invalid encrypted payload format: missing iv, authTag, or ciphertext",
-    );
-  }
-
-  const iv = Buffer.from(encryptedVote.iv, "base64") as any;
-  const authTag = Buffer.from(encryptedVote.authTag, "base64") as any;
-  const ciphertext = Buffer.from(encryptedVote.ciphertext, "base64") as any;
-
-  // Validate buffer lengths to provide descriptive errors
-  if (iv.length !== 12) {
-    throw new Error(
-      `Invalid IV length: expected 12 bytes, got ${iv.length} bytes`,
-    );
-  }
-
-  if (authTag.length !== 16) {
-    throw new Error(
-      `Invalid auth tag length: expected 16 bytes, got ${authTag.length} bytes`,
-    );
-  }
-
-  if (ciphertext.length === 0) {
-    throw new Error("Ciphertext must not be empty");
-  }
-
-  // @ts-ignore - Node.js crypto typings do not align Buffer with CipherKey/BinaryLike
-  const decipher = createDecipheriv("aes-256-gcm", Buffer.from(key), iv);
+  const decipher = createDecipheriv("aes-256-gcm", keyBuffer, iv);
   decipher.setAuthTag(authTag);
 
   try {
-    const updated = decipher.update(ciphertext) as any;
-    const finalized = decipher.final() as any;
-    // @ts-ignore - Buffer.concat type issues with Node.js crypto return types
-    const decrypted = Buffer.concat([updated, finalized]);
-    return decrypted.toString("utf8");
-  } catch (err) {
-    // GCM throws if the auth tag doesn't match (tampered ciphertext)
-    // or if the ciphertext is corrupted
-    throw new Error(
-      `Decryption failed: invalid authentication tag or corrupted ciphertext`,
+    return (
+      decipher.update(ciphertext).toString("utf8") +
+      decipher.final("utf8")
+    );
+  } catch {
+    throw new CryptoError(
+      "Failed to decrypt vote: payload has been tampered with or the key is incorrect",
     );
   }
 }
