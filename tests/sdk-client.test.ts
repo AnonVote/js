@@ -2,7 +2,6 @@
  * Test suite for AnonVoteClient SDK — @anonvote/crypto/client
  * All 22 required cases from issue #42.
  */
-import { randomBytes } from "crypto";
 import { AnonVoteClient } from "../src/client/index";
 import type {
   ClientConfig,
@@ -10,7 +9,6 @@ import type {
   Ballot,
   VoteReceipt,
 } from "../src/client/types";
-import { ValidationError } from "../src/errors";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -33,15 +31,15 @@ function makeActiveElection(client: AnonVoteClient): Election {
 
 describe("AnonVoteClient constructor", () => {
   it("throws INVALID_KEY for a 32-character ballotKey", () => {
-    expect(
-      () => new AnonVoteClient({ ballotKey: "a".repeat(32) }),
-    ).toThrow("INVALID_KEY");
+    expect(() => new AnonVoteClient({ ballotKey: "a".repeat(32) })).toThrow(
+      "INVALID_KEY",
+    );
   });
 
   it("throws INVALID_KEY for a non-hex ballotKey", () => {
-    expect(
-      () => new AnonVoteClient({ ballotKey: "z".repeat(64) }),
-    ).toThrow("INVALID_KEY");
+    expect(() => new AnonVoteClient({ ballotKey: "z".repeat(64) })).toThrow(
+      "INVALID_KEY",
+    );
   });
 
   it("instantiates successfully with a valid 64-character hex key", () => {
@@ -293,9 +291,7 @@ describe("serialize and deserialize", () => {
       encryptedPayload: { iv: "aa", authTag: "bb" },
     });
 
-    expect(() => client.deserialize(json)).toThrow(
-      "INVALID_SERIALIZED_BALLOT",
-    );
+    expect(() => client.deserialize(json)).toThrow("INVALID_SERIALIZED_BALLOT");
   });
 
   it("deserialized Ballot has no optionId (empty string) after deserialization", () => {

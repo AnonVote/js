@@ -7,15 +7,8 @@ import {
   BallotNotFoundError,
   AuthError,
   TimeoutError,
-  ApiError,
 } from "./errors";
-import type {
-  Ballot,
-  Option,
-  Result,
-  EncryptedPayload,
-  RetryConfig,
-} from "../types";
+import type { Ballot, EncryptedPayload, RetryConfig } from "../types";
 
 // ── Config & response types ────────────────────────────────────────────────
 
@@ -220,7 +213,10 @@ export class AnonVoteClient {
       title: title.trim(),
       description: description.trim(),
       options,
-      deadline: typeof deadline === "number" ? new Date(deadline).toISOString() : deadline,
+      deadline:
+        typeof deadline === "number"
+          ? new Date(deadline).toISOString()
+          : deadline,
     });
   }
 
@@ -250,7 +246,10 @@ export class AnonVoteClient {
    * console.log(`Added ${result.added} voters`);
    * ```
    */
-  async uploadVoters(ballotId: string, voters: string[]): Promise<UploadResult> {
+  async uploadVoters(
+    ballotId: string,
+    voters: string[],
+  ): Promise<UploadResult> {
     this.requireBallotId(ballotId);
     if (!Array.isArray(voters) || voters.length === 0) {
       throw new ValidationError("voters must be a non-empty array");
