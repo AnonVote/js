@@ -72,38 +72,43 @@ tally is complete.
 ## Integration with backend
 
 `AnonVoteClient` (available at the `@anonvote/crypto/client` subpath) wraps the
-primitives above into a single client for talking to the AnonVote backend API:
+primitives above into a minimal, framework-agnostic API for creating elections
+and casting votes. It performs no network calls itself — pair it with your own
+backend integration for persistence and submission.
 
 ```typescript
 import { AnonVoteClient } from "@anonvote/crypto/client";
 import { randomBytes } from "crypto";
 
-const client = new AnonVoteClient({
-  apiUrl: "https://api.anonvote.io",
-  ballotEncryptionKey: randomBytes(32).toString("hex"),
-  authToken: process.env.ANONVOTE_AUTH_TOKEN,
+// Generate a fresh key per ballot — never reuse across ballots
+const ballotKey = randomBytes(32).toString("hex");
+const client = new AnonVoteClient({ ballotKey });
+
+// 1. Create an election (pure client-side, no network)
+const election = client.createElection({
+  title: "Board Election 2026",
+  description: "Elect two new board members.",
+  options: ["Alice", "Bob", "Abstain"],
+  startTime: new Date(),
+  endTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
 });
 
-const ballot = await client.createBallot(
-  "Board Election",
-  "Elect new members",
-  ["Alice", "Bob"],
-  new Date(Date.now() + 7 * 86_400_000).toISOString(),
-);
+// 2. Cast a vote — pass the option UUID, not the label
+const ballot = client.castVote(election, election.options[0].id);
 
-await client.uploadVoters(ballot.id, ["alice@example.com", "bob@example.com"]);
-const { tokens } = await client.issueBallotTokens(ballot.id);
+// 3. Verify locally before submitting
+const result = client.verifyVote(ballot);
+console.log(result.confirmed); // true
 
-// Each voter submits their vote with their token:
-await client.submitVote(ballot.id, tokens[0], "Alice");
-
-const results = await client.getBallotResults(ballot.id);
+// 4. Serialize for server submission — optionId is intentionally excluded
+const json = client.serialize(ballot);
+await fetch("/api/votes", { method: "POST", body: json });
 ```
 
-`AnonVoteClient` automatically encrypts votes before submission, retries
-transient network failures with exponential backoff, and maps backend error
-codes to typed SDK error classes (`AuthError`, `BallotClosedError`,
-`InvalidTokenError`, and so on).
+The constructor throws immediately if `ballotKey` is not a valid
+64-character hex string, `castVote` never logs the chosen `optionId`, and
+`serialize` omits `optionId` so only the encrypted payload ever reaches your
+backend.
 
 ## Common pitfalls and solutions
 

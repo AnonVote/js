@@ -21,10 +21,20 @@
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
-<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">partial</span>: <span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/index.RetryConfig.html" class="tsd-signature-type tsd-kind-interface">RetryConfig</a><span class="tsd-signature-symbol">&gt;</span></span></li></ul></div>
-<h4 class="tsd-returns-title">Returns <a href="../interfaces/index.RetryConfig.html" class="tsd-signature-type tsd-kind-interface">RetryConfig</a></h4><aside class="tsd-sources">
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">partial</span>: <span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/index.RetryConfig.html" class="tsd-signature-type tsd-kind-interface">RetryConfig</a><span class="tsd-signature-symbol">&gt;</span></span>
+<div class="tsd-comment tsd-typography"><p>Partial retry configuration; any omitted field falls back
+to <a href="../variables/index.DEFAULT_RETRY_CONFIG.html" class="tsd-kind-variable">DEFAULT_RETRY_CONFIG</a>.</p>
+</div></li></ul></div>
+<h4 class="tsd-returns-title">Returns <a href="../interfaces/index.RetryConfig.html" class="tsd-signature-type tsd-kind-interface">RetryConfig</a></h4><p>A complete <a href="../interfaces/index.RetryConfig.html" class="tsd-kind-interface">RetryConfig</a> with every field populated.</p>
+
+<div class="tsd-comment tsd-typography">
+<div class="tsd-tag-example">
+<h4 class="tsd-anchor-link" id="example">Example<a href="#example" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="typescript"><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">config</span><span class="hl-1"> = </span><span class="hl-6">resolveRetryConfig</span><span class="hl-1">({ </span><span class="hl-2">maxRetries:</span><span class="hl-1"> </span><span class="hl-8">5</span><span class="hl-1"> });</span><br/><span class="hl-7">// config.maxRetries === 5, all other fields from DEFAULT_RETRY_CONFIG</span>
+</code><button type="button">Copy</button></pre>
+
+</div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/AnonVote/js/blob/bd75a699bd2015f4c688c15e880431efb7d5e60f/src/retry.ts#L17">retry.ts:17</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in <a href="https://github.com/AnonVote/js/blob/c5525718d8da967baef050a3c768951f61e478ef/src/retry.ts#L27">retry.ts:27</a></li></ul></aside></div></li></ul></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
