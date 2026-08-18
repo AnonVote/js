@@ -171,6 +171,10 @@ Never log or commit this value. Store it as a secret in your deployment environm
 
 ## API Reference
 
+Full generated API documentation, including every exported function, class, and
+type with parameter and return descriptions, is available at
+**[anonvote.github.io/js](https://anonvote.github.io/js/)**.
+
 ### Cryptographic functions
 
 | Export | Description |
