@@ -27,6 +27,7 @@ export type { RetryConfig } from "./types";
 
 // Client SDK
 export { AnonVoteClient } from "./client";
+export type { SerializedElection } from "./client";
 
 // Error types
 export { AnonVoteError, ValidationError, CryptoError } from "./errors";

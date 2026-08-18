@@ -25,6 +25,7 @@
     "test": "jest --runInBand",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
+    "docs": "typedoc",
     "prepublishOnly": "npm run build && npm test",
     "typecheck:bench": "tsc -p tsconfig.benchmarks.json",
     "bench": "npm run bench:encrypt && npm run bench:decrypt && npm run bench:hash && npm run bench:token",
@@ -61,6 +62,7 @@
     "tinybench": "2.9.0",
     "ts-jest": "29.1.2",
     "tsx": "4.16.0",
+    "typedoc": "^0.28.20",
     "typescript": "5.4.3",
     "typescript-eslint": "^8.65.0"
   }
