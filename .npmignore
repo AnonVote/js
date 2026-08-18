@@ -7,6 +7,10 @@ src/
 # Exclude build configuration
 tsconfig.json
 jest.config.js
+typedoc.json
+
+# Exclude generated TypeDoc site
+docs/
 
 # Exclude source maps
 *.js.map
