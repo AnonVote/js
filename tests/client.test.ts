@@ -240,12 +240,10 @@ describe("AnonVoteClient", () => {
       expect(receipt.id.startsWith("receipt-")).toBe(true);
       expect(receipt.ballotId).toBe("elec-123");
       expect(receipt.electionId).toBe("elec-123");
-      // encryptedPayload is a JSON-serialised EncryptedPayload object
-      expect(() => JSON.parse(receipt.encryptedPayload)).not.toThrow();
-      const parsed = JSON.parse(receipt.encryptedPayload);
-      expect(parsed).toHaveProperty("ciphertext");
-      expect(parsed).toHaveProperty("iv");
-      expect(parsed).toHaveProperty("authTag");
+      // encryptedPayload is now an EncryptedPayload object
+      expect(receipt.encryptedPayload).toHaveProperty("ciphertext");
+      expect(receipt.encryptedPayload).toHaveProperty("iv");
+      expect(receipt.encryptedPayload).toHaveProperty("authTag");
       expect(receipt.encryptedPayload).toEqual(ENCRYPTED_PAYLOAD_SHAPE);
       expect(receipt.castAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       expect(receipt.verified).toBe(false);
@@ -258,11 +256,10 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
-      // encryptedPayload is a JSON-serialised EncryptedPayload — parse and check all three hex fields
-      const parsed = JSON.parse(receipt.encryptedPayload);
-      expect(parsed.ciphertext).toMatch(/^[0-9a-f]+$/);
-      expect(parsed.iv).toMatch(/^[0-9a-f]+$/);
-      expect(parsed.authTag).toMatch(/^[0-9a-f]+$/);
+      // encryptedPayload is now an EncryptedPayload object with ciphertext, iv, authTag as hex strings
+      expect(receipt.encryptedPayload.ciphertext).toMatch(/^[0-9a-f]+$/);
+      expect(receipt.encryptedPayload.iv).toMatch(/^[0-9a-f]+$/);
+      expect(receipt.encryptedPayload.authTag).toMatch(/^[0-9a-f]+$/);
       // The payload should have ciphertext, iv, and authTag as hex strings
       expect(receipt.encryptedPayload).toEqual(ENCRYPTED_PAYLOAD_SHAPE);
     });
@@ -279,7 +276,9 @@ describe("AnonVoteClient", () => {
         encryptionKey: TEST_KEY,
       });
 
-      expect(r1.encryptedPayload.ciphertext).not.toBe(r2.encryptedPayload.ciphertext);
+      expect(r1.encryptedPayload.ciphertext).not.toBe(
+        r2.encryptedPayload.ciphertext,
+      );
       expect(r1.encryptedPayload.iv).not.toBe(r2.encryptedPayload.iv);
     });
   });
@@ -376,32 +375,44 @@ describe("AnonVoteClient", () => {
       const payload = client.serialize(election);
       const json = JSON.stringify(payload);
       const parsed: unknown = JSON.parse(json);
-      const restored = client.deserialize(parsed as Parameters<AnonVoteClient["deserialize"]>[0]);
+      const restored = client.deserialize(
+        parsed as Parameters<AnonVoteClient["deserialize"]>[0],
+      );
 
       expect(restored).toEqual(election);
     });
 
     it("throws on missing id", () => {
-      expect(() => client.deserialize({ title: "T" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0])).toThrow(
-        "Invalid payload: missing or invalid id",
-      );
+      expect(() =>
+        client.deserialize({ title: "T" } as unknown as Parameters<
+          AnonVoteClient["deserialize"]
+        >[0]),
+      ).toThrow("Invalid payload: missing or invalid id");
     });
 
     it("throws on missing title", () => {
       expect(() =>
-        client.deserialize({ id: "1" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
+        client.deserialize({ id: "1" } as unknown as Parameters<
+          AnonVoteClient["deserialize"]
+        >[0]),
       ).toThrow("Invalid payload: missing or invalid title");
     });
 
     it("throws on missing description", () => {
       expect(() =>
-        client.deserialize({ id: "1", title: "T" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
+        client.deserialize({ id: "1", title: "T" } as unknown as Parameters<
+          AnonVoteClient["deserialize"]
+        >[0]),
       ).toThrow("Invalid payload: missing or invalid description");
     });
 
     it("throws on missing options", () => {
       expect(() =>
-        client.deserialize({ id: "1", title: "T", description: "D" } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
+        client.deserialize({
+          id: "1",
+          title: "T",
+          description: "D",
+        } as unknown as Parameters<AnonVoteClient["deserialize"]>[0]),
       ).toThrow("Invalid payload: missing or invalid options");
     });
 
@@ -672,7 +683,9 @@ describe("withRetry", () => {
       const err = new HttpError(503, "Service Unavailable");
       const operation = jest.fn().mockRejectedValue(err);
 
-      await expect(withRetry(operation, makeConfig({ maxRetries: 3 }))).rejects.toThrow(err);
+      await expect(
+        withRetry(operation, makeConfig({ maxRetries: 3 })),
+      ).rejects.toThrow(err);
       expect(operation).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
     });
 
@@ -760,7 +773,9 @@ describe("withRetry", () => {
       const err = new HttpError(503, "Service Unavailable");
       const operation = jest.fn().mockRejectedValue(err);
 
-      await expect(withRetry(operation, makeConfig({ maxRetries: 2 }), onRetry)).rejects.toThrow(err);
+      await expect(
+        withRetry(operation, makeConfig({ maxRetries: 2 }), onRetry),
+      ).rejects.toThrow(err);
 
       // maxRetries = 2 → 3 total calls, 2 retries
       expect(operation).toHaveBeenCalledTimes(3);
@@ -773,7 +788,9 @@ describe("withRetry", () => {
       const err = new HttpError(503, "Service Unavailable");
       const operation = jest.fn().mockRejectedValue(err);
 
-      await expect(withRetry(operation, makeConfig({ maxRetries: 0 }))).rejects.toThrow(err);
+      await expect(
+        withRetry(operation, makeConfig({ maxRetries: 0 })),
+      ).rejects.toThrow(err);
       expect(operation).toHaveBeenCalledTimes(1);
     });
   });
@@ -896,7 +913,9 @@ describe("AnonVoteClient – retry integration", () => {
     });
 
     const retryLog: number[] = [];
-    client.onRetry = (attempt) => { retryLog.push(attempt); };
+    client.onRetry = (attempt) => {
+      retryLog.push(attempt);
+    };
 
     const operation = jest
       .fn()
