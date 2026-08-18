@@ -147,17 +147,28 @@ export class AnonVoteClient {
    */
   createElection(params: CreateElectionParams): Election {
     // Validate title
-    if (!params.title || (typeof params.title === "string" && params.title.trim().length === 0)) {
+    if (
+      !params.title ||
+      (typeof params.title === "string" && params.title.trim().length === 0)
+    ) {
       throw new ValidationError("Election title is required");
     }
 
     // Validate description
-    if (!params.description || (typeof params.description === "string" && params.description.trim().length === 0)) {
+    if (
+      !params.description ||
+      (typeof params.description === "string" &&
+        params.description.trim().length === 0)
+    ) {
       throw new ValidationError("Election description is required");
     }
 
     // Validate options
-    if (!params.options || !Array.isArray(params.options) || params.options.length === 0) {
+    if (
+      !params.options ||
+      !Array.isArray(params.options) ||
+      params.options.length === 0
+    ) {
       throw new ValidationError("At least one voting option is required");
     }
 
@@ -171,13 +182,17 @@ export class AnonVoteClient {
     // Validate startTime
     const startTimeMs = this.parseTimestamp(params.startTime);
     if (isNaN(startTimeMs)) {
-      throw new ValidationError("Invalid startTime: must be a valid date or timestamp");
+      throw new ValidationError(
+        "Invalid startTime: must be a valid date or timestamp",
+      );
     }
 
     // Validate endTime
     const endTimeMs = this.parseTimestamp(params.endTime);
     if (isNaN(endTimeMs)) {
-      throw new ValidationError("Invalid endTime: must be a valid date or timestamp");
+      throw new ValidationError(
+        "Invalid endTime: must be a valid date or timestamp",
+      );
     }
 
     if (endTimeMs <= startTimeMs) {
@@ -191,15 +206,23 @@ export class AnonVoteClient {
     const id = this.generateId("elec");
 
     // Create options with generated IDs
-    const electionOptions: ElectionOption[] = params.options.map((text, index) => ({
-      id: this.generateId(`option-${index}`),
-      text: text.trim(),
-    }));
+    const electionOptions: ElectionOption[] = params.options.map(
+      (text, index) => ({
+        id: this.generateId(`option-${index}`),
+        text: text.trim(),
+      }),
+    );
 
     return {
       id,
-      title: typeof params.title === "string" ? params.title.trim() : String(params.title),
-      description: typeof params.description === "string" ? params.description.trim() : String(params.description),
+      title:
+        typeof params.title === "string"
+          ? params.title.trim()
+          : String(params.title),
+      description:
+        typeof params.description === "string"
+          ? params.description.trim()
+          : String(params.description),
       options: electionOptions,
       startTime: new Date(startTimeMs).toISOString(),
       endTime: new Date(endTimeMs).toISOString(),
@@ -234,24 +257,31 @@ export class AnonVoteClient {
    * ```
    */
   castVote(params: CastVoteParams): VoteReceipt {
-    if (!params.ballotId || (typeof params.ballotId === "string" && params.ballotId.trim().length === 0)) {
+    if (
+      !params.ballotId ||
+      (typeof params.ballotId === "string" &&
+        params.ballotId.trim().length === 0)
+    ) {
       throw new ValidationError("ballotId is required");
     }
 
-    if (!params.voteOption || (typeof params.voteOption === "string" && params.voteOption.trim().length === 0)) {
+    if (
+      !params.voteOption ||
+      (typeof params.voteOption === "string" &&
+        params.voteOption.trim().length === 0)
+    ) {
       throw new ValidationError("voteOption is required");
     }
 
     const encryptionKey = params.encryptionKey || this.config.encryptionKey;
     if (!encryptionKey) {
-      throw new ValidationError("encryptionKey is required either in params or client config");
+      throw new ValidationError(
+        "encryptionKey is required either in params or client config",
+      );
     }
 
-    // Encrypt the vote — serialise the EncryptedPayload object to a JSON string
-    // so it fits the VoteReceipt.encryptedPayload string field.
-    const encryptedPayload = JSON.stringify(
-      encryptVote(params.voteOption.trim(), encryptionKey),
-    );
+    // Encrypt the vote
+    const encryptedVote = encryptVote(params.voteOption.trim(), encryptionKey);
 
     const id = this.generateId("receipt");
     const castAt = new Date().toISOString();
@@ -260,7 +290,7 @@ export class AnonVoteClient {
       id,
       electionId: params.ballotId,
       ballotId: params.ballotId,
-      encryptedPayload,
+      encryptedPayload: encryptedVote,
       castAt,
       verified: false,
     };
@@ -286,7 +316,10 @@ export class AnonVoteClient {
    * console.log(isValid); // true
    * ```
    */
-  verifyVote(encryptedPayload: EncryptedPayload, encryptionKey?: string): boolean {
+  verifyVote(
+    encryptedPayload: EncryptedPayload,
+    encryptionKey?: string,
+  ): boolean {
     if (
       !encryptedPayload ||
       !encryptedPayload.ciphertext ||
@@ -302,9 +335,6 @@ export class AnonVoteClient {
     }
 
     try {
-      // encryptedPayload is stored as a JSON-serialised EncryptedPayload object
-      const parsed = JSON.parse(encryptedPayload.trim());
-      const decrypted = decryptVote(parsed, key);
       const decrypted = decryptVote(encryptedPayload, key);
       // If decryption succeeded, the payload is valid
       return typeof decrypted === "string" && decrypted.length > 0;
@@ -380,7 +410,9 @@ export class AnonVoteClient {
     }
 
     if (!payload.description || typeof payload.description !== "string") {
-      throw new ValidationError("Invalid payload: missing or invalid description");
+      throw new ValidationError(
+        "Invalid payload: missing or invalid description",
+      );
     }
 
     if (!Array.isArray(payload.options)) {
@@ -398,7 +430,9 @@ export class AnonVoteClient {
     }
 
     if (!payload.startTime || typeof payload.startTime !== "string") {
-      throw new ValidationError("Invalid payload: missing or invalid startTime");
+      throw new ValidationError(
+        "Invalid payload: missing or invalid startTime",
+      );
     }
 
     if (!payload.endTime || typeof payload.endTime !== "string") {
@@ -406,7 +440,9 @@ export class AnonVoteClient {
     }
 
     if (!payload.createdAt || typeof payload.createdAt !== "string") {
-      throw new ValidationError("Invalid payload: missing or invalid createdAt");
+      throw new ValidationError(
+        "Invalid payload: missing or invalid createdAt",
+      );
     }
 
     return {
