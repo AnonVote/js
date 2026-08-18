@@ -13,6 +13,16 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
 
 /**
  * Merge a partial RetryConfig with the defaults, returning a complete config.
+ *
+ * @param partial - Partial retry configuration; any omitted field falls back
+ *   to {@link DEFAULT_RETRY_CONFIG}.
+ * @returns A complete {@link RetryConfig} with every field populated.
+ *
+ * @example
+ * ```typescript
+ * const config = resolveRetryConfig({ maxRetries: 5 });
+ * // config.maxRetries === 5, all other fields from DEFAULT_RETRY_CONFIG
+ * ```
  */
 export function resolveRetryConfig(partial?: Partial<RetryConfig>): RetryConfig {
   if (!partial) return { ...DEFAULT_RETRY_CONFIG };
@@ -42,6 +52,14 @@ export class HttpError extends Error {
 
 /**
  * Sleep for `ms` milliseconds. Exposed for use in tests via mocking.
+ *
+ * @param ms - Number of milliseconds to wait before resolving.
+ * @returns A promise that resolves once the delay has elapsed.
+ *
+ * @example
+ * ```typescript
+ * await sleep(100); // pause for 100ms
+ * ```
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -54,6 +72,14 @@ export function sleep(ms: number): Promise<void> {
  *
  * @param attempt  - Zero-based attempt index (0 = first retry).
  * @param config   - Resolved retry configuration.
+ * @returns The delay in milliseconds before the next attempt, capped at
+ *   `config.maxDelayMs`.
+ *
+ * @example
+ * ```typescript
+ * const delayMs = calculateDelay(2, DEFAULT_RETRY_CONFIG);
+ * // delayMs === 400 (100 * 2^2, capped at maxDelayMs)
+ * ```
  */
 export function calculateDelay(attempt: number, config: RetryConfig): number {
   const delay = config.initialDelayMs * Math.pow(config.backoffMultiplier, attempt);
@@ -68,6 +94,17 @@ export function calculateDelay(attempt: number, config: RetryConfig): number {
  * - Non-HTTP errors (network-level failures such as ECONNREFUSED, ETIMEDOUT)
  *
  * Permanent HTTP failures (4xx except those in the allowlist) are NOT retried.
+ *
+ * @param error  - The error thrown by the failed operation.
+ * @param config - Resolved retry configuration, used to check status codes.
+ * @returns `true` if the error should trigger a retry, `false` otherwise.
+ *
+ * @example
+ * ```typescript
+ * if (isRetryable(err, config)) {
+ *   // schedule a retry
+ * }
+ * ```
  */
 export function isRetryable(error: unknown, config: RetryConfig): boolean {
   if (error instanceof HttpError) {
@@ -93,6 +130,18 @@ export function isRetryable(error: unknown, config: RetryConfig): boolean {
  * @param operation - Async operation to execute and potentially retry.
  * @param config    - Resolved retry configuration.
  * @param onRetry   - Optional callback invoked before each retry.
+ * @returns The resolved value of `operation` once it succeeds.
+ * @throws The last error thrown by `operation`, if every attempt fails or the
+ *   error is not retryable.
+ *
+ * @example
+ * ```typescript
+ * const data = await withRetry(
+ *   () => fetch(url).then((res) => res.json()),
+ *   resolveRetryConfig({ maxRetries: 3 }),
+ *   (attempt, delayMs) => console.log(`retry ${attempt} in ${delayMs}ms`),
+ * );
+ * ```
  */
 export async function withRetry<T>(
   operation: () => Promise<T>,
