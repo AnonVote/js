@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { getRandomBytes, bytesToHex } from "./random";
 import { encryptVote, decryptVote } from "./crypto";
 import { ValidationError } from "./errors";
 import { withRetry, resolveRetryConfig } from "./retry";
@@ -491,10 +491,7 @@ export class AnonVoteClient {
    *          from 16 cryptographically random bytes.
    */
   private generateId(prefix: string): string {
-    const bytes = randomBytes(16);
-    const hex = Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    const hex = bytesToHex(getRandomBytes(16));
 
     const uuid = [
       hex.slice(0, 8),
