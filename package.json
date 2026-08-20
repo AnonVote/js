@@ -33,6 +33,7 @@
     "bench:decrypt": "tsx benchmarks/decrypt.bench.ts",
     "bench:hash": "tsx benchmarks/hash.bench.ts",
     "bench:token": "tsx benchmarks/generateToken.bench.ts",
+    "bench:perf-hooks": "tsx benchmarks/perf-hooks.bench.ts",
     "bench:memory": "node --expose-gc --import tsx benchmarks/memory-profile.ts"
   },
   "keywords": [
