@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { randomUUID } from "../random";
 import { encryptVote, decryptVote } from "../crypto";
 import { ValidationError } from "../errors";
 import type {
@@ -23,21 +23,14 @@ export type {
 /** Regex that matches a valid 64-character lowercase hex string. */
 const HEX_64 = /^[0-9a-f]{64}$/i;
 
-/** Generates a v4-like UUID from 16 random bytes. */
-function generateUUID(): string {
-  const b = randomBytes(16);
-  // Set version bits (v4) and variant bits per RFC 4122
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const h = b.toString("hex");
-  return [
-    h.slice(0, 8),
-    h.slice(8, 12),
-    h.slice(12, 16),
-    h.slice(16, 20),
-    h.slice(20, 32),
-  ].join("-");
-}
+/**
+ * Generates an RFC 4122 v4 UUID from 16 cryptographically random bytes.
+ *
+ * Delegates to the shared cross-runtime implementation; the local copy used
+ * Node's `randomBytes` and `Buffer.prototype.toString("hex")`, neither of
+ * which exists in edge runtimes.
+ */
+const generateUUID = randomUUID;
 
 /** Returns the derived status of an election relative to now. */
 function deriveStatus(election: Election): Election["status"] {

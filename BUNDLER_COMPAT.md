@@ -20,13 +20,28 @@ npm run test:bundlers
 
 Test projects live in `tests/bundler-compat/<bundler-name>/`.
 
-## Important: Node-only package
+## Runtime support
 
-This SDK uses Node's built-in `crypto` module (`createHash`,
-`randomBytes`, `createCipheriv`, `createDecipheriv`). It is not
-intended to run in browsers, and our bundler tests target Node
-(`platform: "node"` / `target: "node"`), not the browser. Browser
-bundling is out of scope for these tests.
+Randomness is cross-runtime. `generateToken`, the client's id generation,
+and every other path that needs random bytes go through
+`getRandomBytes()` in `src/random.ts`, which prefers the Web Crypto API
+(`globalThis.crypto.getRandomValues`) and falls back to Node's
+`crypto.randomBytes` only when no global Web Crypto exists. Node's
+`crypto` module is never imported at the top level — it is reached
+through a `require()` inside a function body, so edge bundlers do not
+pull it into the output. That means the package can be imported, and
+tokens generated, on Cloudflare Workers, Vercel Edge, Deno and in
+browsers.
+
+**Still Node-only:** `encryptVote`, `decryptVote`, `hashIdentifier`,
+`hashToken` and `verifyVoteHash` use Node's `createCipheriv`,
+`createDecipheriv` and `createHash`. The Web Crypto equivalents
+(`crypto.subtle`) are async, so moving to them would change these from
+sync to async — a breaking API change, deliberately not made here. Calling
+them on an edge runtime still throws; importing the package does not.
+
+Our bundler tests target Node (`platform: "node"` / `target: "node"`).
+Browser bundling remains out of scope for those tests.
 
 ## Known Issues and Workarounds
 
