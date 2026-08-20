@@ -36,3 +36,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Test Examples
+        run: npm run test:examples

@@ -263,6 +263,28 @@ These primitives enforce AnonVote's structural unlinkability model:
 
 ---
 
+## Examples and Integration Guide
+
+Working TypeScript examples demonstrating the complete ballot lifecycle are available in the [`examples/`](./examples/) directory:
+
+| File | Description |
+| --- | --- |
+| [`basic-ballot.ts`](./examples/basic-ballot.ts) | Ballot creation, key generation, vote encryption, and verification |
+| [`token-workflow.ts`](./examples/token-workflow.ts) | Token generation, hashing, and validation |
+| [`error-handling.ts`](./examples/error-handling.ts) | Handling `ValidationError` and `CryptoError` gracefully |
+| [`client-integration.ts`](./examples/client-integration.ts) | Using `AnonVoteClient` to create elections and cast votes |
+
+For a complete walkthrough of the SDK including common pitfalls and FAQ, see the [**Integration Guide**](./INTEGRATION_GUIDE.md).
+
+Run the examples:
+
+```bash
+npx tsx examples/basic-ballot.ts
+npx tsx examples/token-workflow.ts
+```
+
+---
+
 ## Development
 
 ```bash
@@ -275,12 +297,13 @@ npm run build
 
 ### Scripts
 
-| Command              | Description                          |
-| -------------------- | ------------------------------------ |
-| `npm run build`      | Compile TypeScript to `dist/`        |
-| `npm test`           | Run unit tests with Jest             |
-| `npm run lint`       | ESLint check on `src/` and `tests/`  |
-| `npm run lint:fix`   | Auto-fix fixable lint issues         |
+| Command                | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `npm run build`        | Compile TypeScript to `dist/`                  |
+| `npm test`             | Run unit tests with Jest                       |
+| `npm run test:examples`| Run example integration tests                 |
+| `npm run lint`         | ESLint check on `src/` and `tests/`            |
+| `npm run lint:fix`     | Auto-fix fixable lint issues                   |
 
 ### Pre-commit checklist
 
