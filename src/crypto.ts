@@ -1,6 +1,7 @@
-﻿import type { EncryptedPayload } from "./types";
+import type { EncryptedPayload } from "./types";
 import { CryptoError, ValidationError } from "./errors";
 import { getNodeCrypto, getRandomBytes, bytesToHex } from "./random";
+import { bytesToBase64Url } from "./utils";
 
 /**
  * Normalizes a voter identifier so that equivalent identifiers — differing
@@ -57,25 +58,29 @@ export function hashIdentifier(id: string): string {
 /**
  * Generate a cryptographically secure random voter token.
  *
- * Produces 32 bytes (256 bits) of entropy via Node.js `crypto.randomBytes`,
- * encoded as a 64-character hex string. The raw value is given to the voter —
- * never persisted server-side. Use {@link hashToken} to store the server-side
- * reference.
+ * Produces 32 bytes (256 bits) of entropy via Node.js `crypto.randomBytes` or Web Crypto API.
+ * Returns either a 64-character hex string (default) or a 43-character URL-safe base64 string.
+ * The raw value is given to the voter — never persisted server-side.
+ * Use {@link hashToken} to store the server-side reference.
  *
- * @returns A 64-character hex string representing a 256-bit random token.
+ * @param encoding - Optional encoding variant: 'hex' (default, 64 chars) or 'base64url' (43 chars).
+ * @returns Token string in specified encoding format.
  *
  * Works in Node.js and in edge runtimes (Cloudflare Workers, Vercel Edge
  * Functions) via the Web Crypto API — see the "Runtime support" section
  * of the README.
  *
- * @returns 64-character hex string (32 random bytes)
- *
  * @example
- * const rawToken = generateToken(); // give this to the voter
+ * const rawToken = generateToken(); // default hex string (64 chars)
+ * const b64UrlToken = generateToken("base64url"); // compact base64url string (43 chars)
  * const storedHash = hashToken(rawToken); // store only this
  */
-export function generateToken(): string {
-  return bytesToHex(getRandomBytes(32));
+export function generateToken(encoding?: "hex" | "base64url"): string {
+  const bytes = getRandomBytes(32);
+  if (encoding === "base64url") {
+    return bytesToBase64Url(bytes);
+  }
+  return bytesToHex(bytes);
 }
 
 /**

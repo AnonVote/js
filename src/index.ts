@@ -15,6 +15,9 @@ export {
   verifyVoteHash,
 } from "./crypto";
 
+// Helper utilities
+export { bytesToBase64Url } from "./utils";
+
 // Retry utility
 export {
   withRetry,
