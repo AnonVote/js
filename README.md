@@ -34,9 +34,10 @@ This package is the canonical source of all crypto and token logic used across t
 | Export                       | Description                                                                                                        | Edge runtime support |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------- |
 | `hashIdentifier(id)`         | SHA-256 hash of a voter identifier. Trims and lowercases before hashing. Never store originals — only hashes.      | No — Node.js `crypto` only |
-| `generateToken()`            | Generates a 32-byte (256-bit) CSPRNG token as a hex string. Used for one-time voter tokens.                        | Yes |
+| `generateToken(encoding?)`   | Generates a 32-byte (256-bit) CSPRNG token as a hex (default, 64 chars) or base64url string (43 chars).             | Yes |
+| `bytesToBase64Url(bytes)`    | Converts bytes to an RFC 4648 URL-safe base64 string without padding.                                              | Yes |
 | `hashToken(token)`           | SHA-256 hash of a raw token. Only the hash is ever persisted — the raw value is given to the voter and discarded.  | No — Node.js `crypto` only |
-| `encryptVote(optionId, key)` | AES-256-GCM encryption of a vote option ID. Returns `iv:authTag:ciphertext` in base64. Requires a 32-byte hex key. | No — Node.js `crypto` only |
+| `encryptVote(optionId, key)` | AES-256-GCM encryption of a vote option ID. Returns an `EncryptedPayload` object with `iv`, `authTag`, and `ciphertext` — all lowercase hex strings (see `DECISIONS.md`). Requires a 32-byte hex key. | No — Node.js `crypto` only |
 | `decryptVote(payload, key)`  | Decrypts a vote payload produced by `encryptVote`. Used only by the result tally engine.                           | No — Node.js `crypto` only |
 
 ### Types (`src/types.ts`)
@@ -82,9 +83,10 @@ import {
 // Hash a voter identifier before storing — never store the original
 const identifierHash = hashIdentifier("alice@example.com");
 
-// Issue a one-time anonymous token
-const rawToken = generateToken();    // give this to the voter
-const storedHash = hashToken(rawToken); // store only this; discard rawToken
+// Issue a one-time anonymous token ('hex' by default, or compact 'base64url')
+const rawToken = generateToken();              // 64-char hex string (default)
+const compactToken = generateToken("base64url"); // 43-char URL-safe base64 string
+const storedHash = hashToken(rawToken);        // store only this; discard rawToken
 
 // Encrypt a vote option — returns { ciphertext, iv, authTag } all in hex
 const BALLOT_KEY = process.env.BALLOT_ENCRYPTION_KEY!; // 64-char hex
@@ -180,7 +182,8 @@ type with parameter and return descriptions, is available at
 | Export | Description |
 | ------ | ----------- |
 | `hashIdentifier(id)` | Returns the SHA-256 hash of a voter identifier. Trims and lowercases before hashing. |
-| `generateToken()` | Generates a 32-byte (256-bit) CSPRNG token as a hex string. Used for one-time voter tokens. |
+| `generateToken(encoding?)` | Generates a 32-byte (256-bit) CSPRNG token as a hex (64 chars) or base64url string (43 chars). |
+| `bytesToBase64Url(bytes)` | Converts bytes to an RFC 4648 URL-safe base64 string without padding. |
 | `hashToken(token)` | Returns the SHA-256 hash of a raw token. Only the hash is ever persisted. |
 | `encryptVote(option, key)` | AES-256-GCM encryption of a vote option. Returns an `EncryptedPayload`. Requires a 64-char hex key. |
 | `decryptVote(payload, key)` | Decrypts a payload produced by `encryptVote`. Used only by the result tally engine. |

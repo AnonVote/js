@@ -1,4 +1,4 @@
-﻿import {
+import {
   hashIdentifier,
   generateToken,
   hashToken,
@@ -90,22 +90,61 @@ describe("hashIdentifier", () => {
 });
 
 describe("generateToken", () => {
-  it("returns a 64-char hex string (32 bytes)", () => {
+  it("defaults to hex encoding and returns a 64-char hex string (32 bytes)", () => {
     const token = generateToken();
     expect(token).toHaveLength(64);
     expect(token).toMatch(/^[0-9a-f]+$/);
   });
 
-  it("returns a different token each call", () => {
-    expect(generateToken()).not.toBe(generateToken());
+  it("returns a 64-char hex string when 'hex' encoding is explicitly requested", () => {
+    const token = generateToken("hex");
+    expect(token).toHaveLength(64);
+    expect(token).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it("returns a 43-char base64url string when 'base64url' encoding is requested", () => {
+    const token = generateToken("base64url");
+    expect(token).toHaveLength(43);
+    expect(token).toMatch(/^[a-zA-Z0-9_-]+$/);
+    expect(token).not.toContain("+");
+    expect(token).not.toContain("/");
+    expect(token).not.toContain("=");
+  });
+
+  it("returns a different token each call for both encodings", () => {
+    expect(generateToken("hex")).not.toBe(generateToken("hex"));
+    expect(generateToken("base64url")).not.toBe(generateToken("base64url"));
   });
 
   it("produces 1000 unique values across consecutive calls", () => {
     const tokens = new Set<string>();
     for (let i = 0; i < 1000; i++) {
-      tokens.add(generateToken());
+      tokens.add(generateToken("base64url"));
     }
     expect(tokens.size).toBe(1000);
+  });
+
+  it("decodes both encoding variants back to identical 32 bytes", () => {
+    // Test decoding of hex vs base64url when given identical random bytes
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = (i * 31 + 17) % 256;
+    }
+    const hexToken = Buffer.from(bytes).toString("hex");
+    const base64UrlToken = Buffer.from(bytes)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+
+    const decodedHex = new Uint8Array(Buffer.from(hexToken, "hex"));
+    const decodedB64Url = new Uint8Array(
+      Buffer.from(base64UrlToken, "base64url"),
+    );
+
+    expect(decodedHex).toEqual(bytes);
+    expect(decodedB64Url).toEqual(bytes);
+    expect(decodedHex).toEqual(decodedB64Url);
   });
 
   describe("edge runtime compatibility", () => {
@@ -120,7 +159,7 @@ describe("generateToken", () => {
       });
     });
 
-    it("uses globalThis.crypto.getRandomValues when it's available", () => {
+    it("uses globalThis.crypto.getRandomValues when it's available for hex", () => {
       const getRandomValues = jest.fn((arr: Uint8Array) => {
         // Fill deterministically so we can assert on the output.
         arr.fill(0xab);
@@ -132,12 +171,30 @@ describe("generateToken", () => {
         configurable: true,
       });
 
-      const token = generateToken();
+      const token = generateToken("hex");
 
       expect(getRandomValues).toHaveBeenCalledTimes(1);
       expect(getRandomValues.mock.calls[0][0]).toBeInstanceOf(Uint8Array);
       expect(getRandomValues.mock.calls[0][0]).toHaveLength(32);
       expect(token).toBe("ab".repeat(32));
+    });
+
+    it("uses globalThis.crypto.getRandomValues when it's available for base64url", () => {
+      const getRandomValues = jest.fn((arr: Uint8Array) => {
+        arr.fill(0xab);
+        return arr;
+      });
+
+      Object.defineProperty(globalThis, "crypto", {
+        value: { getRandomValues },
+        configurable: true,
+      });
+
+      const token = generateToken("base64url");
+
+      expect(getRandomValues).toHaveBeenCalledTimes(1);
+      expect(token).toHaveLength(43);
+      expect(token).toMatch(/^[a-zA-Z0-9_-]+$/);
     });
 
     it("falls back to Node's crypto.randomBytes when getRandomValues is unavailable", () => {
@@ -146,10 +203,13 @@ describe("generateToken", () => {
         configurable: true,
       });
 
-      const token = generateToken();
+      const hexToken = generateToken();
+      const b64Token = generateToken("base64url");
 
-      expect(token).toHaveLength(64);
-      expect(token).toMatch(/^[0-9a-f]+$/);
+      expect(hexToken).toHaveLength(64);
+      expect(hexToken).toMatch(/^[0-9a-f]+$/);
+      expect(b64Token).toHaveLength(43);
+      expect(b64Token).toMatch(/^[a-zA-Z0-9_-]+$/);
     });
   });
 });
