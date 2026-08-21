@@ -1,4 +1,4 @@
-<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>verifyVoteHash | @anonvote/crypto - v0.1.0</title><meta name="description" content="Documentation for @anonvote/crypto"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>verifyVoteProof | @anonvote/crypto - v0.1.0</title><meta name="description" content="Documentation for @anonvote/crypto"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
 <div class="tsd-toolbar-contents container"><a href="../index.html" class="title">@anonvote/crypto - v0.1.0</a>
 <div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/>
 <ul role="listbox" id="tsd-search-results"></ul>
@@ -9,18 +9,18 @@
 <div class="tsd-page-title">
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="../modules/index.html">index</a></li>
-<li><a href="" aria-current="page">verifyVoteHash</a></li></ul>
-<h1>Function verifyVoteHash</h1></div>
-<section class="tsd-panel tsd-comment">
-<div class="tsd-comment tsd-typography"><p>@anonvote/crypto</p>
-<p>Public API for the AnonVote cryptographic primitives, shared types,
-and the AnonVoteClient SDK.</p>
-</div></section>
-<section class="tsd-panel">
+<li><a href="" aria-current="page">verifyVoteProof</a></li></ul>
+<h1>Variable verifyVoteProof<code class="tsd-tag">Const</code></h1></div>
+<div class="tsd-signature"><span class="tsd-kind-variable">verifyVoteProof</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">voteOption</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">encryptedVote</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/index.EncryptedVote.html" class="tsd-signature-type tsd-kind-interface">EncryptedVote</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">ballotKey</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span> <span class="tsd-signature-symbol">=&gt;</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol"> = verifyVoteHash</span></div>
+<div class="tsd-comment tsd-typography"><p>Alias for <a href="../functions/index.verifyVoteHash.html" class="tsd-kind-function">verifyVoteHash</a> for Merkle and inclusion proof verification compatibility.</p>
+</div>
+<div class="tsd-type-declaration">
+<h4>Type Declaration</h4>
+<ul class="tsd-parameters">
+<li class="tsd-parameter-signature">
 <ul class="tsd-signatures">
-<li class="">
-<div class="tsd-signature tsd-anchor-link" id="verifyvotehash"><span class="tsd-kind-call-signature">verifyVoteHash</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">voteOption</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">encryptedVote</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/index.EncryptedVote.html" class="tsd-signature-type tsd-kind-interface">EncryptedVote</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">ballotKey</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span><a href="#verifyvotehash" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
-<div class="tsd-description">
+<li class="tsd-signature" id="__type"><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">voteOption</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-kind-parameter">encryptedVote</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/index.EncryptedVote.html" class="tsd-signature-type tsd-kind-interface">EncryptedVote</a><span class="tsd-signature-symbol">,</span> <span class="tsd-kind-parameter">ballotKey</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></li>
+<li class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Verify that an encrypted vote payload corresponds to a given vote option.</p>
 <p>This function verifies by:</p>
 <ol>
@@ -53,9 +53,9 @@ must decrypt the actual encrypted payload rather than re-encrypting.</p>
 <h4 class="tsd-anchor-link" id="example">Example<a href="#example" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">isValid</span><span class="hl-1"> = </span><span class="hl-6">verifyVoteHash</span><span class="hl-1">(</span><span class="hl-3">&quot;option-uuid&quot;</span><span class="hl-1">, </span><span class="hl-2">encryptedVote</span><span class="hl-1">, </span><span class="hl-2">ballotKey</span><span class="hl-1">);</span>
 </code><button type="button">Copy</button></pre>
 
-</div></div><aside class="tsd-sources">
+</div></div></li></ul></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/AnonVote/js/blob/509204c4fe17e734902f31b3a2b3241cc29fb8a6/src/crypto.ts#L216">crypto.ts:216</a></li></ul></aside></div></li></ul></section></div>
+<li>Defined in <a href="https://github.com/AnonVote/js/blob/509204c4fe17e734902f31b3a2b3241cc29fb8a6/src/crypto.ts#L236">crypto.ts:236</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
