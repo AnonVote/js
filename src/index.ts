@@ -13,6 +13,7 @@ export {
   encryptVote,
   decryptVote,
   verifyVoteHash,
+  verifyVoteProof,
 } from "./crypto";
 
 // Retry utility

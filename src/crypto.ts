@@ -231,6 +231,12 @@ export function verifyVoteHash(
 }
 
 /**
+ * Alias for {@link verifyVoteHash} for Merkle and inclusion proof verification compatibility.
+ */
+export const verifyVoteProof = verifyVoteHash;
+
+
+/**
  * Parse and validate a base64-encoded 32-byte ballot key.
  *
  * Accepts both standard base64 and base64url encodings.
