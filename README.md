@@ -373,4 +373,4 @@ Per-ballot encryption keys, rate limiting, error handling, retry queues, no raw 
 
 ## License
 
-[MIT](LICENSE)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
